@@ -1,0 +1,109 @@
+{
+  "Ad": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "platform": "meta",
+    "format": "image",
+    "advertiser_name": "Nike Korea",
+    "advertiser_handle": "@nikekorea",
+    "advertiser_avatar_url": null,
+    "thumbnail_url": "https://example.com/thumb.jpg",
+    "preview_url": null,
+    "media_type": "image",
+    "ad_copy": "Just Do It",
+    "cta_text": null,
+    "likes": null,
+    "comments": null,
+    "shares": null,
+    "start_date": null,
+    "end_date": null,
+    "tags": [
+      "ecommerce",
+      "sports"
+    ],
+    "landing_page_url": null,
+    "created_at": "2026-02-20T10:00:00",
+    "saved_at": null
+  },
+  "AdSearchResponse": {
+    "items": [
+      {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "platform": "meta",
+        "format": "image",
+        "advertiser_name": "Nike Korea",
+        "advertiser_handle": "@nikekorea",
+        "advertiser_avatar_url": null,
+        "thumbnail_url": "https://example.com/thumb.jpg",
+        "preview_url": null,
+        "media_type": "image",
+        "ad_copy": "Just Do It",
+        "cta_text": null,
+        "likes": null,
+        "comments": null,
+        "shares": null,
+        "start_date": null,
+        "end_date": null,
+        "tags": [
+          "ecommerce",
+          "sports"
+        ],
+        "landing_page_url": null,
+        "created_at": "2026-02-20T10:00:00",
+        "saved_at": null
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 20,
+    "has_next": false
+  },
+  "AdDetailResponse": {
+    "ad": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "platform": "meta",
+      "format": "image",
+      "advertiser_name": "Nike Korea",
+      "advertiser_handle": "@nikekorea",
+      "advertiser_avatar_url": null,
+      "thumbnail_url": "https://example.com/thumb.jpg",
+      "preview_url": null,
+      "media_type": "image",
+      "ad_copy": "Just Do It",
+      "cta_text": null,
+      "likes": null,
+      "comments": null,
+      "shares": null,
+      "start_date": null,
+      "end_date": null,
+      "tags": [
+        "ecommerce",
+        "sports"
+      ],
+      "landing_page_url": null,
+      "created_at": "2026-02-20T10:00:00",
+      "saved_at": null
+    },
+    "similar_ads": []
+  },
+  "AdSaveRequest": {
+    "platform": "meta",
+    "format": "image",
+    "advertiser_name": "Nike Korea",
+    "advertiser_handle": null,
+    "advertiser_avatar_url": null,
+    "thumbnail_url": "https://example.com/thumb.jpg",
+    "preview_url": null,
+    "media_type": "image",
+    "ad_copy": null,
+    "cta_text": null,
+    "likes": null,
+    "comments": null,
+    "shares": null,
+    "start_date": null,
+    "end_date": null,
+    "tags": [
+      "ecommerce"
+    ],
+    "landing_page_url": null
+  }
+}

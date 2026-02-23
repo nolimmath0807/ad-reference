@@ -1,0 +1,20 @@
+{
+  "LoginRequest": {
+    "email": "user@example.com",
+    "password": "secureP@ss123"
+  },
+  "RegisterRequest": {
+    "email": "new@example.com",
+    "password": "secureP@ss123",
+    "name": "Kim"
+  },
+  "TokenResponse": {
+    "access_token": "eyJ...",
+    "refresh_token": "eyJ...",
+    "token_type": "Bearer",
+    "expires_in": 3600
+  },
+  "LogoutRequest": {
+    "refresh_token": "eyJ..."
+  }
+}

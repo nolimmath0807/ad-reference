@@ -1,0 +1,35 @@
+{
+  "Board": {
+    "id": "b1c2d3e4-f5a6-7890-bcde-f12345678901",
+    "name": "Competitor Analysis",
+    "description": "Main competitor ads",
+    "cover_image_url": null,
+    "item_count": 12,
+    "created_at": "2026-02-01T10:00:00",
+    "updated_at": "2026-02-20T14:30:00"
+  },
+  "BoardCreateRequest": {
+    "name": "Creative References",
+    "description": "Marketing team refs"
+  },
+  "BoardItemAddRequest": {
+    "ad_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  },
+  "BoardListResponse": {
+    "items": [
+      {
+        "id": "b1c2d3e4-f5a6-7890-bcde-f12345678901",
+        "name": "Competitor Analysis",
+        "description": "Main competitor ads",
+        "cover_image_url": null,
+        "item_count": 12,
+        "created_at": "2026-02-01T10:00:00",
+        "updated_at": "2026-02-20T14:30:00"
+      }
+    ],
+    "total": 1,
+    "page": 1,
+    "limit": 12,
+    "has_next": false
+  }
+}

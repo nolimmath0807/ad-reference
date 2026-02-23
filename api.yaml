@@ -1,0 +1,1327 @@
+openapi: 3.0.3
+info:
+  title: Ad Reference API
+  version: 1.0.0
+  description: |
+    Meta, Google Ads, TikTok, Instagram 광고 크리에이티브를 수집하여
+    경쟁사 레퍼런스를 분석하는 내부 SaaS 플랫폼 API.
+
+servers:
+  - url: http://localhost:8000
+    description: 로컬 개발 서버
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Auth
+    description: 인증 (회원가입, 로그인, 로그아웃)
+  - name: Ads
+    description: 광고 크리에이티브 검색, 상세 조회, 저장
+  - name: Boards
+    description: 보드(컬렉션) 생성, 조회, 광고 추가/제거
+  - name: Users
+    description: 사용자 프로필 조회 및 수정
+  - name: Platforms
+    description: 외부 플랫폼 연동 상태 확인
+
+paths:
+  # ──────────────────────────────────────────────
+  # Auth
+  # ──────────────────────────────────────────────
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: 회원가입
+      description: 이메일, 비밀번호, 이름으로 신규 계정을 생성합니다.
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: "#/components/schemas/User"
+                  tokens:
+                    $ref: "#/components/schemas/TokenResponse"
+                required:
+                  - user
+                  - tokens
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: 로그인
+      description: 이메일과 비밀번호로 로그인하여 JWT 토큰을 발급받습니다.
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: 로그아웃
+      description: refresh_token을 무효화하여 로그아웃합니다.
+      operationId: logoutUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "200":
+          description: 로그아웃 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "로그아웃되었습니다."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Ads
+  # ──────────────────────────────────────────────
+  /ads/search:
+    get:
+      tags: [Ads]
+      summary: 멀티 플랫폼 광고 검색
+      description: |
+        키워드, 플랫폼, 포맷, 정렬, 날짜 범위, 업종 등 다양한 필터로
+        Meta, Google, TikTok, Instagram 광고를 검색합니다.
+      operationId: searchAds
+      parameters:
+        - name: keyword
+          in: query
+          description: 검색 키워드 (광고주, 브랜드, 광고 카피)
+          schema:
+            type: string
+            example: "나이키"
+        - name: platform
+          in: query
+          description: 플랫폼 필터
+          schema:
+            type: string
+            enum: [all, meta, google, tiktok, instagram]
+            default: all
+            example: "all"
+        - name: format
+          in: query
+          description: 광고 포맷 필터
+          schema:
+            type: string
+            enum: [all, image, video, carousel, reels]
+            default: all
+            example: "all"
+        - name: sort
+          in: query
+          description: 정렬 기준
+          schema:
+            type: string
+            enum: [recent, popular, engagement]
+            default: recent
+            example: "recent"
+        - name: date_from
+          in: query
+          description: 시작 날짜 (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+            example: "2026-01-01"
+        - name: date_to
+          in: query
+          description: 종료 날짜 (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+            example: "2026-02-23"
+        - name: industry
+          in: query
+          description: 업종 필터
+          schema:
+            type: string
+            example: "이커머스"
+        - name: page
+          in: query
+          description: 페이지 번호 (1부터 시작)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          description: 페이지당 항목 수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+      responses:
+        "200":
+          description: 검색 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdSearchResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /ads/{ad_id}:
+    get:
+      tags: [Ads]
+      summary: 광고 상세 조회
+      description: 특정 광고의 상세 정보를 조회합니다. 유사 광고 추천 목록도 함께 반환합니다.
+      operationId: getAdDetail
+      parameters:
+        - name: ad_id
+          in: path
+          required: true
+          description: 광고 고유 ID
+          schema:
+            type: string
+            format: uuid
+            example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /ads/save:
+    post:
+      tags: [Ads]
+      summary: 광고 DB 저장 / 북마크
+      description: 외부 플랫폼에서 가져온 광고 데이터를 로컬 DB에 저장하거나 북마크합니다.
+      operationId: saveAd
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdSaveRequest"
+      responses:
+        "201":
+          description: 저장 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ad"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Boards
+  # ──────────────────────────────────────────────
+  /boards:
+    post:
+      tags: [Boards]
+      summary: 보드 생성
+      description: 새로운 광고 컬렉션 보드를 생성합니다.
+      operationId: createBoard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardCreateRequest"
+      responses:
+        "201":
+          description: 보드 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Board"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    get:
+      tags: [Boards]
+      summary: 보드 목록 조회
+      description: 로그인한 사용자의 보드 목록을 조회합니다.
+      operationId: listBoards
+      parameters:
+        - name: page
+          in: query
+          description: 페이지 번호 (1부터 시작)
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          description: 페이지당 항목 수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 12
+            example: 12
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /boards/{board_id}:
+    get:
+      tags: [Boards]
+      summary: 보드 상세 조회
+      description: 보드의 상세 정보와 저장된 광고 목록을 함께 조회합니다.
+      operationId: getBoardDetail
+      parameters:
+        - name: board_id
+          in: path
+          required: true
+          description: 보드 고유 ID
+          schema:
+            type: string
+            format: uuid
+            example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+        - name: page
+          in: query
+          description: 보드 내 광고 목록 페이지 번호
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+            example: 1
+        - name: limit
+          in: query
+          description: 보드 내 광고 목록 페이지당 항목 수
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+            example: 20
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardDetailResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /boards/{board_id}/items:
+    post:
+      tags: [Boards]
+      summary: 보드에 광고 추가
+      description: 지정된 보드에 광고를 추가합니다.
+      operationId: addBoardItem
+      parameters:
+        - name: board_id
+          in: path
+          required: true
+          description: 보드 고유 ID
+          schema:
+            type: string
+            format: uuid
+            example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BoardItemAddRequest"
+      responses:
+        "201":
+          description: 추가 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BoardItem"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /boards/{board_id}/items/{item_id}:
+    delete:
+      tags: [Boards]
+      summary: 보드에서 광고 제거
+      description: 보드에서 특정 광고 항목을 제거합니다. 원본 광고 데이터는 삭제되지 않습니다.
+      operationId: removeBoardItem
+      parameters:
+        - name: board_id
+          in: path
+          required: true
+          description: 보드 고유 ID
+          schema:
+            type: string
+            format: uuid
+            example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+        - name: item_id
+          in: path
+          required: true
+          description: 보드 항목 고유 ID
+          schema:
+            type: string
+            format: uuid
+            example: "c1d2e3f4-a5b6-7890-cdef-123456789012"
+      responses:
+        "200":
+          description: 제거 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "보드에서 광고가 제거되었습니다."
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Users
+  # ──────────────────────────────────────────────
+  /users/me:
+    get:
+      tags: [Users]
+      summary: 내 프로필 조회
+      description: 현재 로그인한 사용자의 프로필 정보를 조회합니다.
+      operationId: getMyProfile
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      tags: [Users]
+      summary: 프로필 수정
+      description: 이름, 회사, 직무, 비밀번호 등 프로필 정보를 수정합니다.
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdateRequest"
+      responses:
+        "200":
+          description: 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Platforms
+  # ──────────────────────────────────────────────
+  /platforms/status:
+    get:
+      tags: [Platforms]
+      summary: 플랫폼 연동 상태 확인
+      description: Meta, Google, TikTok, Instagram 각 플랫폼의 연동 상태를 확인합니다.
+      operationId: getPlatformStatus
+      responses:
+        "200":
+          description: 조회 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  platforms:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlatformStatus"
+                required:
+                  - platforms
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  # ──────────────────────────────────────────────
+  # Security Schemes
+  # ──────────────────────────────────────────────
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access_token을 Authorization 헤더에 Bearer 방식으로 전달합니다.
+
+  # ──────────────────────────────────────────────
+  # Reusable Responses
+  # ──────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: 잘못된 요청 (필수 필드 누락, 유효성 검증 실패)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "BAD_REQUEST"
+              message: "요청 데이터가 유효하지 않습니다."
+              details:
+                - field: "email"
+                  message: "올바른 이메일 형식이 아닙니다."
+
+    Unauthorized:
+      description: 인증 실패 (토큰 없음, 만료, 유효하지 않음)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "UNAUTHORIZED"
+              message: "인증이 필요합니다."
+              details: null
+
+    NotFound:
+      description: 리소스를 찾을 수 없음
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "NOT_FOUND"
+              message: "요청한 리소스를 찾을 수 없습니다."
+              details: null
+
+    Conflict:
+      description: 리소스 충돌 (이미 존재하는 데이터)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "CONFLICT"
+              message: "이미 존재하는 리소스입니다."
+              details: null
+
+    InternalServerError:
+      description: 서버 내부 오류
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            error:
+              code: "INTERNAL_SERVER_ERROR"
+              message: "서버 내부 오류가 발생했습니다."
+              details: null
+
+  # ──────────────────────────────────────────────
+  # Schemas
+  # ──────────────────────────────────────────────
+  schemas:
+    # ── Error ──
+    Error:
+      type: object
+      description: 표준 에러 응답
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: 에러 코드
+              example: "BAD_REQUEST"
+            message:
+              type: string
+              description: 사용자에게 표시할 에러 메시지
+              example: "요청 데이터가 유효하지 않습니다."
+            details:
+              description: 상세 에러 정보 (유효성 검증 에러 시 필드별 메시지)
+              nullable: true
+              oneOf:
+                - type: array
+                  items:
+                    type: object
+                    properties:
+                      field:
+                        type: string
+                        example: "email"
+                      message:
+                        type: string
+                        example: "올바른 이메일 형식이 아닙니다."
+                - type: "null"
+          required:
+            - code
+            - message
+      required:
+        - error
+
+    # ── User ──
+    User:
+      type: object
+      description: 사용자 프로필
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 사용자 고유 ID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        email:
+          type: string
+          format: email
+          description: 이메일 주소
+          example: "user@example.com"
+        name:
+          type: string
+          description: 사용자 이름
+          example: "홍길동"
+        company:
+          type: string
+          nullable: true
+          description: 소속 회사
+          example: "퍼널크루"
+        job_title:
+          type: string
+          nullable: true
+          description: 직무/직책
+          example: "퍼포먼스 마케터"
+        avatar_url:
+          type: string
+          nullable: true
+          description: 프로필 이미지 URL
+          example: "https://storage.example.com/avatars/user1.jpg"
+        created_at:
+          type: string
+          format: date-time
+          description: 가입일
+          example: "2026-01-15T09:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 마지막 수정일
+          example: "2026-02-20T14:30:00Z"
+      required:
+        - id
+        - email
+        - name
+        - created_at
+        - updated_at
+
+    # ── Auth Request / Response ──
+    LoginRequest:
+      type: object
+      description: 로그인 요청
+      properties:
+        email:
+          type: string
+          format: email
+          description: 이메일 주소
+          example: "user@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: 비밀번호 (8자 이상)
+          example: "secureP@ss123"
+      required:
+        - email
+        - password
+
+    RegisterRequest:
+      type: object
+      description: 회원가입 요청
+      properties:
+        email:
+          type: string
+          format: email
+          description: 이메일 주소
+          example: "newuser@example.com"
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: 비밀번호 (8자 이상, 영문+숫자+특수문자 조합 권장)
+          example: "secureP@ss123"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 사용자 이름
+          example: "김마케터"
+      required:
+        - email
+        - password
+        - name
+
+    TokenResponse:
+      type: object
+      description: JWT 토큰 응답
+      properties:
+        access_token:
+          type: string
+          description: JWT 액세스 토큰
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: JWT 리프레시 토큰
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        token_type:
+          type: string
+          description: 토큰 타입
+          example: "Bearer"
+        expires_in:
+          type: integer
+          description: 액세스 토큰 만료 시간 (초)
+          example: 3600
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+
+    LogoutRequest:
+      type: object
+      description: 로그아웃 요청
+      properties:
+        refresh_token:
+          type: string
+          description: 무효화할 리프레시 토큰
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required:
+        - refresh_token
+
+    # ── Ad ──
+    Ad:
+      type: object
+      description: 광고 크리에이티브
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 광고 고유 ID
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        platform:
+          type: string
+          enum: [meta, google, tiktok, instagram]
+          description: 광고 플랫폼
+          example: "meta"
+        format:
+          type: string
+          enum: [image, video, carousel, reels]
+          description: 광고 포맷
+          example: "image"
+        advertiser_name:
+          type: string
+          description: 광고주 이름
+          example: "나이키 코리아"
+        advertiser_handle:
+          type: string
+          nullable: true
+          description: 광고주 핸들 (SNS 아이디)
+          example: "@nikekorea"
+        advertiser_avatar_url:
+          type: string
+          nullable: true
+          description: 광고주 프로필 이미지 URL
+          example: "https://storage.example.com/advertisers/nike.jpg"
+        thumbnail_url:
+          type: string
+          description: 썸네일 이미지 URL
+          example: "https://storage.example.com/ads/thumb_001.jpg"
+        preview_url:
+          type: string
+          nullable: true
+          description: 원본 미리보기 URL (이미지 또는 동영상)
+          example: "https://storage.example.com/ads/preview_001.jpg"
+        media_type:
+          type: string
+          enum: [image, video]
+          description: 미디어 타입
+          example: "image"
+        ad_copy:
+          type: string
+          nullable: true
+          description: 광고 카피 텍스트
+          example: "이번 시즌 새롭게 출시된 에어맥스. 지금 만나보세요."
+        cta_text:
+          type: string
+          nullable: true
+          description: CTA 버튼 텍스트
+          example: "지금 구매하기"
+        likes:
+          type: integer
+          nullable: true
+          description: 좋아요 수
+          example: 1234
+        comments:
+          type: integer
+          nullable: true
+          description: 댓글 수
+          example: 567
+        shares:
+          type: integer
+          nullable: true
+          description: 공유 수
+          example: 89
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          description: 광고 집행 시작일
+          example: "2026-01-15"
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: 광고 집행 종료일
+          example: "2026-02-15"
+        tags:
+          type: array
+          items:
+            type: string
+          description: 태그 목록
+          example: ["이커머스", "스포츠", "신발"]
+        landing_page_url:
+          type: string
+          nullable: true
+          description: 랜딩 페이지 URL
+          example: "https://www.nike.com/kr/airmax"
+        created_at:
+          type: string
+          format: date-time
+          description: DB 등록일
+          example: "2026-02-20T10:00:00Z"
+        saved_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 사용자 북마크 시각
+          example: "2026-02-21T08:30:00Z"
+      required:
+        - id
+        - platform
+        - format
+        - advertiser_name
+        - thumbnail_url
+        - media_type
+        - tags
+        - created_at
+
+    AdSearchResponse:
+      type: object
+      description: 광고 검색 결과 (페이지네이션 포함)
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ad"
+          description: 검색된 광고 목록
+        total:
+          type: integer
+          description: 전체 검색 결과 수
+          example: 12345
+        page:
+          type: integer
+          description: 현재 페이지 번호
+          example: 1
+        limit:
+          type: integer
+          description: 페이지당 항목 수
+          example: 20
+        has_next:
+          type: boolean
+          description: 다음 페이지 존재 여부
+          example: true
+      required:
+        - items
+        - total
+        - page
+        - limit
+        - has_next
+
+    AdDetailResponse:
+      type: object
+      description: 광고 상세 조회 응답 (유사 광고 추천 포함)
+      properties:
+        ad:
+          $ref: "#/components/schemas/Ad"
+        similar_ads:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ad"
+          description: 유사 광고 추천 목록 (최대 10개)
+      required:
+        - ad
+        - similar_ads
+
+    AdSaveRequest:
+      type: object
+      description: 광고 저장/북마크 요청
+      properties:
+        platform:
+          type: string
+          enum: [meta, google, tiktok, instagram]
+          description: 광고 플랫폼
+          example: "meta"
+        format:
+          type: string
+          enum: [image, video, carousel, reels]
+          description: 광고 포맷
+          example: "image"
+        advertiser_name:
+          type: string
+          description: 광고주 이름
+          example: "나이키 코리아"
+        advertiser_handle:
+          type: string
+          nullable: true
+          description: 광고주 핸들
+          example: "@nikekorea"
+        advertiser_avatar_url:
+          type: string
+          nullable: true
+          description: 광고주 프로필 이미지 URL
+          example: "https://storage.example.com/advertisers/nike.jpg"
+        thumbnail_url:
+          type: string
+          description: 썸네일 이미지 URL
+          example: "https://storage.example.com/ads/thumb_001.jpg"
+        preview_url:
+          type: string
+          nullable: true
+          description: 원본 미리보기 URL
+          example: "https://storage.example.com/ads/preview_001.jpg"
+        media_type:
+          type: string
+          enum: [image, video]
+          description: 미디어 타입
+          example: "image"
+        ad_copy:
+          type: string
+          nullable: true
+          description: 광고 카피 텍스트
+          example: "이번 시즌 새롭게 출시된 에어맥스."
+        cta_text:
+          type: string
+          nullable: true
+          description: CTA 버튼 텍스트
+          example: "지금 구매하기"
+        likes:
+          type: integer
+          nullable: true
+          description: 좋아요 수
+          example: 1234
+        comments:
+          type: integer
+          nullable: true
+          description: 댓글 수
+          example: 567
+        shares:
+          type: integer
+          nullable: true
+          description: 공유 수
+          example: 89
+        start_date:
+          type: string
+          format: date
+          nullable: true
+          description: 집행 시작일
+          example: "2026-01-15"
+        end_date:
+          type: string
+          format: date
+          nullable: true
+          description: 집행 종료일
+          example: "2026-02-15"
+        tags:
+          type: array
+          items:
+            type: string
+          description: 태그 목록
+          example: ["이커머스", "스포츠"]
+        landing_page_url:
+          type: string
+          nullable: true
+          description: 랜딩 페이지 URL
+          example: "https://www.nike.com/kr/airmax"
+      required:
+        - platform
+        - format
+        - advertiser_name
+        - thumbnail_url
+        - media_type
+
+    # ── Board ──
+    Board:
+      type: object
+      description: 광고 컬렉션 보드
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 보드 고유 ID
+          example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+        name:
+          type: string
+          description: 보드 이름
+          example: "경쟁사 분석"
+        description:
+          type: string
+          nullable: true
+          description: 보드 설명
+          example: "주요 경쟁사의 Meta, Google 광고를 모아놨습니다."
+        cover_image_url:
+          type: string
+          nullable: true
+          description: 보드 커버 이미지 URL (첫 번째 저장 광고의 썸네일)
+          example: "https://storage.example.com/ads/thumb_001.jpg"
+        item_count:
+          type: integer
+          description: 보드에 저장된 광고 수
+          example: 12
+        created_at:
+          type: string
+          format: date-time
+          description: 생성일
+          example: "2026-02-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 마지막 수정일
+          example: "2026-02-20T14:30:00Z"
+      required:
+        - id
+        - name
+        - item_count
+        - created_at
+        - updated_at
+
+    BoardCreateRequest:
+      type: object
+      description: 보드 생성 요청
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 보드 이름
+          example: "크리에이티브 참고"
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: 보드 설명
+          example: "마케팅팀 크리에이티브 참고 자료 모음"
+      required:
+        - name
+
+    BoardItem:
+      type: object
+      description: 보드에 저장된 광고 항목
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 보드 항목 고유 ID
+          example: "c1d2e3f4-a5b6-7890-cdef-123456789012"
+        board_id:
+          type: string
+          format: uuid
+          description: 소속 보드 ID
+          example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+        ad_id:
+          type: string
+          format: uuid
+          description: 광고 ID
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+        ad:
+          $ref: "#/components/schemas/Ad"
+        added_at:
+          type: string
+          format: date-time
+          description: 보드에 추가된 시각
+          example: "2026-02-21T08:30:00Z"
+      required:
+        - id
+        - board_id
+        - ad_id
+        - ad
+        - added_at
+
+    BoardItemAddRequest:
+      type: object
+      description: 보드에 광고 추가 요청
+      properties:
+        ad_id:
+          type: string
+          format: uuid
+          description: 추가할 광고 ID
+          example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      required:
+        - ad_id
+
+    BoardListResponse:
+      type: object
+      description: 보드 목록 응답 (페이지네이션 포함)
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Board"
+          description: 보드 목록
+        total:
+          type: integer
+          description: 전체 보드 수
+          example: 5
+        page:
+          type: integer
+          description: 현재 페이지 번호
+          example: 1
+        limit:
+          type: integer
+          description: 페이지당 항목 수
+          example: 12
+        has_next:
+          type: boolean
+          description: 다음 페이지 존재 여부
+          example: false
+      required:
+        - items
+        - total
+        - page
+        - limit
+        - has_next
+
+    BoardDetailResponse:
+      type: object
+      description: 보드 상세 응답 (보드 정보 + 저장된 광고 목록)
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: 보드 고유 ID
+          example: "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+        name:
+          type: string
+          description: 보드 이름
+          example: "경쟁사 분석"
+        description:
+          type: string
+          nullable: true
+          description: 보드 설명
+          example: "주요 경쟁사의 Meta, Google 광고를 모아놨습니다."
+        cover_image_url:
+          type: string
+          nullable: true
+          description: 보드 커버 이미지 URL
+          example: "https://storage.example.com/ads/thumb_001.jpg"
+        item_count:
+          type: integer
+          description: 보드에 저장된 광고 수
+          example: 12
+        created_at:
+          type: string
+          format: date-time
+          description: 생성일
+          example: "2026-02-01T10:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 마지막 수정일
+          example: "2026-02-20T14:30:00Z"
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BoardItem"
+          description: 보드에 저장된 광고 항목 목록
+        total:
+          type: integer
+          description: 전체 항목 수
+          example: 12
+        page:
+          type: integer
+          description: 현재 페이지 번호
+          example: 1
+        limit:
+          type: integer
+          description: 페이지당 항목 수
+          example: 20
+        has_next:
+          type: boolean
+          description: 다음 페이지 존재 여부
+          example: false
+      required:
+        - id
+        - name
+        - item_count
+        - created_at
+        - updated_at
+        - items
+        - total
+        - page
+        - limit
+        - has_next
+
+    # ── User Update ──
+    UserUpdateRequest:
+      type: object
+      description: 프로필 수정 요청 (변경할 필드만 전송)
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: 사용자 이름
+          example: "김마케터"
+        company:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: 소속 회사
+          example: "퍼널크루"
+        job_title:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: 직무/직책
+          example: "퍼포먼스 마케터"
+        current_password:
+          type: string
+          format: password
+          description: 현재 비밀번호 (비밀번호 변경 시 필수)
+          example: "oldP@ss123"
+        new_password:
+          type: string
+          format: password
+          minLength: 8
+          description: 새 비밀번호 (8자 이상)
+          example: "newP@ss456"
+
+    # ── Platform ──
+    PlatformStatus:
+      type: object
+      description: 외부 플랫폼 연동 상태
+      properties:
+        platform:
+          type: string
+          enum: [meta, google, tiktok, instagram]
+          description: 플랫폼 이름
+          example: "meta"
+        status:
+          type: string
+          enum: [active, limited, unavailable]
+          description: |
+            연동 상태
+            - active: 정상 작동
+            - limited: 제한적 작동 (일부 기능 불가)
+            - unavailable: 사용 불가
+          example: "active"
+        message:
+          type: string
+          nullable: true
+          description: 상태 설명 메시지
+          example: "Meta Ad Library API 정상 연동 중"
+        last_synced_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 마지막 데이터 동기화 시각
+          example: "2026-02-23T06:00:00Z"
+      required:
+        - platform
+        - status
