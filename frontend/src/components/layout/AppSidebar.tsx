@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FolderOpen, Settings, LogOut, ChevronsUpDown } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Globe, Settings, LogOut, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar,
@@ -26,6 +26,7 @@ import {
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Boards", icon: FolderOpen, path: "/boards" },
+  { label: "Competitors", icon: Globe, path: "/competitors" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
 

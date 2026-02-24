@@ -26,6 +26,7 @@ class Format(str, Enum):
 class MediaType(str, Enum):
     image = "image"
     video = "video"
+    text = "text"
 
 
 class Ad(BaseModel):

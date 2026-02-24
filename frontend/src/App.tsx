@@ -9,6 +9,8 @@ import RegisterPage from "@/pages/RegisterPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { BoardsPage } from "@/pages/BoardsPage";
 import { BoardDetailPage } from "@/pages/BoardDetailPage";
+import { CompetitorsPage } from "@/pages/CompetitorsPage";
+import { CompetitorDetailPage } from "@/pages/CompetitorDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 
@@ -63,6 +65,26 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <BoardDetailPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/competitors"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CompetitorsPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/competitors/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <CompetitorDetailPage />
                 </AppLayout>
               </ProtectedRoute>
             }

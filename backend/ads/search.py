@@ -110,7 +110,9 @@ def _build_where(
         conditions.append("platform = %s")
         params.append(platform)
 
-    if format != "all":
+    if format == "all":
+        conditions.append("format != 'text'")
+    elif format != "all":
         conditions.append("format = %s")
         params.append(format)
 
@@ -126,7 +128,9 @@ def _build_where(
         conditions.append("%s = ANY(tags)")
         params.append(industry)
 
-    conditions.append("format != 'text'")
+    # 비정상 썸네일 필터 (HTML 페이지 URL, 빈 문자열 제외)
+    conditions.append("thumbnail_url != ''")
+    conditions.append("thumbnail_url NOT LIKE '%%.html%%'")
 
     where = " AND ".join(conditions) if conditions else "TRUE"
     return where, params

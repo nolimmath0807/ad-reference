@@ -50,6 +50,7 @@ const formatLabels: Record<FormatType, string> = {
   video: "Video",
   carousel: "Carousel",
   reels: "Reels",
+  text: "Text",
 };
 
 function formatDate(dateStr: string | null): string {
@@ -79,7 +80,15 @@ function isPlayableVideoUrl(url: string): boolean {
 }
 
 function isYouTubeUrl(url: string): boolean {
-  return url.includes("youtube.com/embed/") || url.includes("youtu.be/");
+  return url.includes("youtube.com/embed/") || url.includes("youtube.com/watch?v=") || url.includes("youtu.be/");
+}
+
+function getYouTubeEmbedUrl(url: string): string {
+  const watchMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
+  if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
+  if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+  return url;
 }
 
 function getImageUrl(url: string | null | undefined): string {
@@ -136,7 +145,40 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                   isVideoAd ? "w-full" : "lg:w-[55%]"
                 )}
               >
-                {mediaError || (!currentAd.thumbnail_url && !currentAd.preview_url) ? (
+                {currentAd.format === "text" && currentAd.ad_copy ? (
+                  <div className="flex min-h-[300px] w-full flex-col justify-center gap-4 rounded-lg border bg-background p-8">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">Ad</span>
+                      {currentAd.landing_page_url && (
+                        <span className="text-sm text-green-700 dark:text-green-400">
+                          {(() => { try { return new URL(currentAd.landing_page_url).hostname; } catch { return ''; } })()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="space-y-3">
+                      <p className="text-xl font-medium text-blue-600 dark:text-blue-400">
+                        {currentAd.ad_copy.split('\n')[0]}
+                      </p>
+                      {currentAd.ad_copy.split('\n').length > 1 && (
+                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/70">
+                          {currentAd.ad_copy.split('\n').slice(1).join('\n')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : currentAd.format === "text" && !currentAd.ad_copy && currentAd.thumbnail_url && !mediaError ? (
+                  <div className="relative flex min-h-[300px] w-full items-center justify-center">
+                    <img
+                      src={getImageUrl(currentAd.thumbnail_url)}
+                      alt={currentAd.advertiser_name}
+                      className="max-h-[500px] w-full object-contain"
+                      onError={() => setMediaError(true)}
+                    />
+                    <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white">
+                      TEXT
+                    </div>
+                  </div>
+                ) : mediaError || (!currentAd.thumbnail_url && !currentAd.preview_url) ? (
                   <div className="flex h-full min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-muted/50">
                     {currentAd.media_type === "video" ? (
                       <Film className="size-12 text-muted-foreground/40" />
@@ -150,7 +192,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                 ) : currentAd.preview_url &&
                   isYouTubeUrl(currentAd.preview_url) ? (
                   <iframe
-                    src={currentAd.preview_url}
+                    src={getYouTubeEmbedUrl(currentAd.preview_url)}
                     className="aspect-video max-h-[400px] w-full"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen

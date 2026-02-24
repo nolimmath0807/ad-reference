@@ -26,6 +26,7 @@ const formatLabels: Record<FormatType, string> = {
   video: "Video",
   carousel: "Carousel",
   reels: "Reels",
+  text: "Text",
 };
 
 function formatCount(count: number | null): string {
@@ -61,7 +62,42 @@ export function AdCard({ ad, onClick, onSave }: AdCardProps) {
     >
       {/* Thumbnail */}
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-        {showPlaceholder ? (
+        {ad.format === "text" && ad.ad_copy ? (
+          <div className="flex h-full w-full flex-col justify-center gap-2 bg-background p-4">
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">Ad</span>
+              {ad.landing_page_url && (
+                <span className="truncate text-sm text-green-700 dark:text-green-400">
+                  {(() => { try { return new URL(ad.landing_page_url).hostname; } catch { return ad.landing_page_url; } })()}
+                </span>
+              )}
+            </div>
+            <p className="line-clamp-2 text-sm font-medium leading-snug text-blue-600 dark:text-blue-400">
+              {ad.ad_copy.split('\n')[0]}
+            </p>
+            {ad.ad_copy.split('\n').length > 1 && (
+              <p className="line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+                {ad.ad_copy.split('\n').slice(1).join(' ')}
+              </p>
+            )}
+          </div>
+        ) : ad.format === "text" && !ad.ad_copy && ad.thumbnail_url && !imgError ? (
+          <>
+            <img
+              src={ad.thumbnail_url}
+              alt={ad.advertiser_name}
+              onError={() => setImgError(true)}
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
+              TEXT
+            </div>
+          </>
+        ) : ad.format === "text" ? (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted">
+            <span className="text-xs font-medium text-muted-foreground/60">Search Ad</span>
+          </div>
+        ) : showPlaceholder ? (
           <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-muted">
             <ImageOff className="size-8 text-muted-foreground/40" />
             <span className="text-xs font-medium text-muted-foreground/60">

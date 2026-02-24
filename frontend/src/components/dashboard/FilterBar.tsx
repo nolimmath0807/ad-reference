@@ -52,6 +52,7 @@ export function FilterBar({
           <SelectItem value="video">Video</SelectItem>
           <SelectItem value="carousel">Carousel</SelectItem>
           <SelectItem value="reels">Reels</SelectItem>
+          <SelectItem value="text">Text</SelectItem>
         </SelectContent>
       </Select>
 

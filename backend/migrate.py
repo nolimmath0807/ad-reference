@@ -89,16 +89,68 @@ def migrate():
         )
     """)
 
+    # 6. monitored_domains table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS monitored_domains (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            domain VARCHAR(255) NOT NULL UNIQUE,
+            platform VARCHAR(20) NOT NULL DEFAULT 'google',
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+
+    # 7. batch_runs table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS batch_runs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            finished_at TIMESTAMPTZ,
+            status VARCHAR(20) NOT NULL DEFAULT 'running',
+            total_domains INTEGER DEFAULT 0,
+            total_ads_scraped INTEGER DEFAULT 0,
+            total_ads_new INTEGER DEFAULT 0,
+            total_ads_updated INTEGER DEFAULT 0,
+            domain_results JSONB DEFAULT '{}',
+            errors JSONB DEFAULT '[]',
+            trigger_type VARCHAR(20) DEFAULT 'manual'
+        )
+    """)
+
+    # 8. ads table - add columns
+    cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
+    cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS raw_data JSONB")
+    cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS domain VARCHAR(255)")
+    cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS creative_id VARCHAR(255)")
+
+    # Backfill domain from landing_page_url (www. 제거하여 정규화)
+    cur.execute("""
+        UPDATE ads
+        SET domain = REPLACE(substring(landing_page_url from 'https?://([^/]+)'), 'www.', '')
+        WHERE domain IS NULL AND landing_page_url IS NOT NULL
+    """)
+
+    # Normalize existing domain values: strip www. prefix
+    cur.execute("""
+        UPDATE ads SET domain = REPLACE(domain, 'www.', '')
+        WHERE domain LIKE 'www.%'
+    """)
+
     # Create indexes
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_platform ON ads(platform)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_format ON ads(format)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_advertiser ON ads(advertiser_name)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_created ON ads(created_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_source ON ads(source_id, platform)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_domain ON ads(domain)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_creative_id ON ads(creative_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_boards_user ON boards(user_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_board_items_board ON board_items(board_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_board_items_ad ON board_items(ad_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_monitored_domains_active ON monitored_domains(is_active, platform)")
 
     conn.commit()
     cur.close()

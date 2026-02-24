@@ -13,6 +13,7 @@ import { AppSidebar } from "./AppSidebar";
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/boards": "Boards",
+  "/competitors": "Competitors",
   "/settings": "Settings",
 };
 

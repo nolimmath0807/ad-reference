@@ -1,6 +1,6 @@
 export type PlatformType = "meta" | "google" | "tiktok" | "instagram";
-export type FormatType = "image" | "video" | "carousel" | "reels";
-export type MediaType = "image" | "video";
+export type FormatType = "image" | "video" | "carousel" | "reels" | "text";
+export type MediaType = "image" | "video" | "text";
 export type SortType = "recent" | "popular" | "engagement";
 
 export interface Ad {

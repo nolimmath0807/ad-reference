@@ -46,7 +46,48 @@ class PlatformAd(BaseModel):
     end_date: Optional[date] = None
     tags: list[str] = []
     landing_page_url: Optional[str] = None
+    domain: str = ""
     raw_data: dict = {}
+    creative_id: str | None = None
+
+
+class MonitoredDomain(BaseModel):
+    id: Optional[str] = None
+    domain: str
+    platform: PlatformType = PlatformType.google
+    is_active: bool = True
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class BatchRunStatus(str, Enum):
+    running = "running"
+    completed = "completed"
+    failed = "failed"
+
+
+class BatchRun(BaseModel):
+    id: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    status: BatchRunStatus = BatchRunStatus.running
+    total_domains: int = 0
+    total_ads_scraped: int = 0
+    total_ads_new: int = 0
+    total_ads_updated: int = 0
+    domain_results: dict = {}
+    errors: list = []
+    trigger_type: str = "manual"
+
+
+class DomainScrapeResult(BaseModel):
+    domain: str
+    ads_scraped: int = 0
+    ads_new: int = 0
+    ads_updated: int = 0
+    duration_seconds: float = 0
+    error: Optional[str] = None
 
 
 def main() -> dict:
@@ -70,9 +111,37 @@ def main() -> dict:
         raw_data={"original_field": "value"},
     )
 
+    monitored_domain = MonitoredDomain(
+        domain="nike.com",
+        platform=PlatformType.google,
+        is_active=True,
+        notes="Global brand tracking",
+    )
+
+    domain_result = DomainScrapeResult(
+        domain="nike.com",
+        ads_scraped=42,
+        ads_new=10,
+        ads_updated=32,
+        duration_seconds=12.5,
+    )
+
+    batch_run = BatchRun(
+        status=BatchRunStatus.completed,
+        total_domains=3,
+        total_ads_scraped=120,
+        total_ads_new=25,
+        total_ads_updated=95,
+        domain_results={"nike.com": domain_result.model_dump(mode="json")},
+        trigger_type="manual",
+    )
+
     return {
         "PlatformStatus": status.model_dump(mode="json"),
         "PlatformAd": platform_ad.model_dump(mode="json"),
+        "MonitoredDomain": monitored_domain.model_dump(mode="json"),
+        "DomainScrapeResult": domain_result.model_dump(mode="json"),
+        "BatchRun": batch_run.model_dump(mode="json"),
     }
 
 
