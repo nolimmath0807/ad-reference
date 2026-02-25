@@ -84,8 +84,12 @@ def _save_ads_to_db(ads: list[PlatformAd]) -> int:
     return saved
 
 
-def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
+def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict:
     """광고를 DB에 UPSERT하고 신규/업데이트 건수를 반환.
+
+    Args:
+        ads: List of PlatformAd objects to upsert.
+        brand_id: Optional brand_id to set on all ads. If provided, overrides ad.brand_id.
 
     Returns: {"new": int, "updated": int, "total": int}
     """
@@ -97,6 +101,7 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
 
     with get_db() as (conn, cur):
         for ad in ads:
+            effective_brand_id = brand_id or ad.brand_id
             cur.execute(
                 """
                 INSERT INTO ads (
@@ -105,14 +110,14 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
                     media_type, ad_copy, cta_text,
                     start_date, end_date, tags,
                     landing_page_url, raw_data, domain, creative_id,
-                    saved_at
+                    brand_id, saved_at
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s,
-                    NOW()
+                    %s, NOW()
                 )
                 ON CONFLICT (source_id, platform) DO UPDATE SET
                     advertiser_name = EXCLUDED.advertiser_name,
@@ -125,6 +130,7 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
                     landing_page_url = EXCLUDED.landing_page_url,
                     domain = EXCLUDED.domain,
                     creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
+                    brand_id = COALESCE(EXCLUDED.brand_id, ads.brand_id),
                     updated_at = NOW(),
                     saved_at = NOW()
                 RETURNING (xmax = 0) AS is_new
@@ -138,6 +144,7 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
                     ad.tags, ad.landing_page_url,
                     json.dumps(ad.raw_data, ensure_ascii=False, default=str),
                     ad.domain, ad.creative_id,
+                    effective_brand_id,
                 ),
             )
             is_new = cur.fetchone()[0]

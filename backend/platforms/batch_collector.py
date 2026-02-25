@@ -8,7 +8,7 @@ from pathlib import Path
 
 from conn import get_db
 from platforms.google_scraper import scrape_google_ads_by_domain
-from platforms.model import BatchRunStatus, DomainScrapeResult, MonitoredDomain
+from platforms.model import BatchRunStatus, BrandSourceScrapeResult, DomainScrapeResult, MonitoredDomain
 from platforms.scrape_worker import upsert_ads_batch
 
 logger = logging.getLogger("batch_collector")
@@ -41,6 +41,80 @@ def get_active_domains() -> list[MonitoredDomain]:
             )
         )
     return domains
+
+
+def get_active_brand_sources() -> list[dict]:
+    """brands + brand_sources JOIN, both is_active=True"""
+    with get_db() as (conn, cur):
+        cur.execute("""
+            SELECT bs.id, bs.brand_id, b.brand_name, bs.platform, bs.source_type, bs.source_value
+            FROM brand_sources bs
+            JOIN brands b ON b.id = bs.brand_id
+            WHERE bs.is_active = TRUE AND b.is_active = TRUE
+            ORDER BY b.brand_name, bs.platform
+        """)
+        rows = cur.fetchall()
+    return [
+        {
+            "source_id": str(r[0]),
+            "brand_id": str(r[1]),
+            "brand_name": r[2],
+            "platform": r[3],
+            "source_type": r[4],
+            "source_value": r[5],
+        }
+        for r in rows
+    ]
+
+
+def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
+    """Dispatch scraping by platform and source_type."""
+    start_time = time.monotonic()
+    platform = source["platform"]
+    source_type = source["source_type"]
+    source_value = source["source_value"]
+    brand_id = source["brand_id"]
+
+    result = BrandSourceScrapeResult(
+        source_id=source["source_id"],
+        platform=platform,
+        source_type=source_type,
+        source_value=source_value,
+    )
+
+    def on_batch(ads):
+        for ad in ads:
+            if not ad.domain:
+                ad.domain = source_value
+            ad.brand_id = brand_id
+        stats = upsert_ads_batch(ads, brand_id=brand_id)
+        result.ads_scraped += len(ads)
+        result.ads_new += stats["new"]
+        result.ads_updated += stats["updated"]
+
+    if platform == "google" and source_type == "domain":
+        scrape_google_ads_by_domain(
+            domain=source_value,
+            headless=True,
+            max_results=None,
+            on_batch_callback=on_batch,
+            mode="incremental" if mode == "incremental" else "full",
+        )
+    elif platform == "meta" and source_type == "keyword":
+        from platforms.meta_scraper import scrape_meta_ads
+        ads = scrape_meta_ads(source_value, headless=True)
+        if ads:
+            on_batch(ads)
+    elif platform == "tiktok" and source_type == "keyword":
+        logger.info(f"TikTok scraping not yet implemented for: {source_value}")
+
+    result.duration_seconds = round(time.monotonic() - start_time, 1)
+    logger.info(
+        f"[{source['brand_name']}:{platform}:{source_value}] "
+        f"scraped={result.ads_scraped}, new={result.ads_new}, "
+        f"updated={result.ads_updated}, duration={result.duration_seconds}s"
+    )
+    return result
 
 
 def create_batch_run(trigger_type: str = "manual") -> str:
@@ -169,45 +243,65 @@ def scrape_domain_incremental(domain: str) -> DomainScrapeResult:
     return result
 
 
-def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: bool = False, mode: str = "full") -> dict:
-    """메인 엔트리포인트:
-    1. batch_run 레코드 생성
-    2. get_active_domains()로 도메인 목록 조회
-    3. 각 도메인에 대해 scrape_domain_fully() 실행
-    4. 최종 update_batch_run()으로 status='completed', finished_at 기록
-    5. 결과 summary dict 반환
-    """
-    # auto 모드: 일요일이면 full, 나머지 요일은 incremental
-    if mode == "auto":
-        if datetime.now().weekday() == 6:  # 일요일 = 6
-            mode = "full"
-            logger.info("auto 모드: 일요일 → full 수집")
-        else:
-            mode = "incremental"
-            logger.info("auto 모드: 평일 → incremental 수집")
+def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) -> dict:
+    """Brand sources 기반 배치 수집 실행."""
+    total_scraped = 0
+    total_new = 0
+    total_updated = 0
+    domain_results = {}
+    errors = []
 
-    # 도메인 목록 결정
-    if domain:
-        domains = [MonitoredDomain(domain=domain)]
-        logger.info(f"단일 도메인 모드: {domain}")
-    else:
-        domains = get_active_domains()
-        logger.info(f"활성 도메인 {len(domains)}개 조회됨 (mode={mode}): {[d.domain for d in domains]}")
+    # Group sources by brand for logging
+    brands_seen = {}
+    for src in brand_sources:
+        brands_seen.setdefault(src["brand_name"], []).append(src)
 
-    # dry-run 모드: 도메인 목록만 출력 후 종료
-    if dry_run:
-        logger.info("DRY-RUN 모드: 스크래핑 없이 종료")
-        return {
-            "mode": "dry_run",
-            "trigger_type": trigger_type,
-            "total_domains": len(domains),
-            "domains": [d.domain for d in domains],
-        }
+    logger.info(f"브랜드 소스 배치: {len(brands_seen)}개 브랜드, {len(brand_sources)}개 소스")
+    for brand_name, sources in brands_seen.items():
+        logger.info(f"  [{brand_name}] {len(sources)}개 소스: {[s['platform']+':'+s['source_value'] for s in sources]}")
 
-    # batch_run 레코드 생성
-    run_id = create_batch_run(trigger_type=trigger_type)
-    update_batch_run(run_id, total_domains=len(domains))
+    for idx, src in enumerate(brand_sources):
+        label = f"{src['brand_name']}:{src['platform']}:{src['source_value']}"
+        logger.info(f"=== [{idx + 1}/{len(brand_sources)}] 소스: {label} ===")
 
+        try:
+            result = scrape_source(src, mode=mode)
+            domain_results[label] = result.model_dump(mode="json")
+            total_scraped += result.ads_scraped
+            total_new += result.ads_new
+            total_updated += result.ads_updated
+        except Exception as e:
+            error_msg = f"[{label}] {type(e).__name__}: {e}"
+            logger.error(error_msg)
+            errors.append(error_msg)
+            domain_results[label] = BrandSourceScrapeResult(
+                source_id=src["source_id"],
+                platform=src["platform"],
+                source_type=src["source_type"],
+                source_value=src["source_value"],
+                error=str(e),
+            ).model_dump(mode="json")
+
+        update_batch_run(
+            run_id,
+            total_ads_scraped=total_scraped,
+            total_ads_new=total_new,
+            total_ads_updated=total_updated,
+            domain_results=domain_results,
+            errors=errors,
+        )
+
+    return {
+        "total_scraped": total_scraped,
+        "total_new": total_new,
+        "total_updated": total_updated,
+        "domain_results": domain_results,
+        "errors": errors,
+    }
+
+
+def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode: str) -> dict:
+    """Legacy monitored_domains 기반 배치 수집 실행."""
     total_scraped = 0
     total_new = 0
     total_updated = 0
@@ -234,7 +328,6 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
                 domain=d.domain, error=str(e)
             ).model_dump(mode="json")
 
-        # 매 도메인 완료 시 중간 결과 저장
         update_batch_run(
             run_id,
             total_ads_scraped=total_scraped,
@@ -244,8 +337,99 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
             errors=errors,
         )
 
+    return {
+        "total_scraped": total_scraped,
+        "total_new": total_new,
+        "total_updated": total_updated,
+        "domain_results": domain_results,
+        "errors": errors,
+    }
+
+
+def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: bool = False, mode: str = "full") -> dict:
+    """메인 엔트리포인트:
+    1. batch_run 레코드 생성
+    2. brand_sources가 있으면 brand 기반 수집, 없으면 legacy monitored_domains 기반 수집
+    3. 각 소스/도메인에 대해 스크래핑 실행
+    4. 최종 update_batch_run()으로 status='completed', finished_at 기록
+    5. 결과 summary dict 반환
+    """
+    # auto 모드: 일요일이면 full, 나머지 요일은 incremental
+    if mode == "auto":
+        if datetime.now().weekday() == 6:  # 일요일 = 6
+            mode = "full"
+            logger.info("auto 모드: 일요일 → full 수집")
+        else:
+            mode = "incremental"
+            logger.info("auto 모드: 평일 → incremental 수집")
+
+    # 단일 도메인 모드 (--domain flag): legacy path
+    if domain:
+        domains = [MonitoredDomain(domain=domain)]
+        logger.info(f"단일 도메인 모드: {domain}")
+
+        if dry_run:
+            logger.info("DRY-RUN 모드: 스크래핑 없이 종료")
+            return {
+                "mode": "dry_run",
+                "trigger_type": trigger_type,
+                "total_domains": 1,
+                "domains": [domain],
+            }
+
+        run_id = create_batch_run(trigger_type=trigger_type)
+        update_batch_run(run_id, total_domains=1)
+        batch_result = _run_legacy_domains_batch(run_id, domains, mode)
+    else:
+        # Try brand sources first, fall back to legacy domains
+        brand_sources = get_active_brand_sources()
+
+        if brand_sources:
+            logger.info(f"브랜드 소스 모드: {len(brand_sources)}개 소스 (mode={mode})")
+            total_items = len(brand_sources)
+
+            if dry_run:
+                logger.info("DRY-RUN 모드: 스크래핑 없이 종료")
+                return {
+                    "mode": "dry_run",
+                    "trigger_type": trigger_type,
+                    "total_sources": total_items,
+                    "sources": [
+                        f"{s['brand_name']}:{s['platform']}:{s['source_value']}"
+                        for s in brand_sources
+                    ],
+                }
+
+            run_id = create_batch_run(trigger_type=trigger_type)
+            update_batch_run(run_id, total_domains=total_items)
+            batch_result = _run_brand_sources_batch(run_id, brand_sources, mode)
+        else:
+            # Legacy: monitored_domains fallback
+            domains = get_active_domains()
+            logger.info(f"활성 도메인 {len(domains)}개 조회됨 (mode={mode}): {[d.domain for d in domains]}")
+            total_items = len(domains)
+
+            if dry_run:
+                logger.info("DRY-RUN 모드: 스크래핑 없이 종료")
+                return {
+                    "mode": "dry_run",
+                    "trigger_type": trigger_type,
+                    "total_domains": total_items,
+                    "domains": [d.domain for d in domains],
+                }
+
+            run_id = create_batch_run(trigger_type=trigger_type)
+            update_batch_run(run_id, total_domains=total_items)
+            batch_result = _run_legacy_domains_batch(run_id, domains, mode)
+
+    total_scraped = batch_result["total_scraped"]
+    total_new = batch_result["total_new"]
+    total_updated = batch_result["total_updated"]
+    domain_results = batch_result["domain_results"]
+    errors = batch_result["errors"]
+
     # 최종 상태 업데이트
-    final_status = BatchRunStatus.completed if not errors else BatchRunStatus.completed
+    final_status = BatchRunStatus.completed
     update_batch_run(
         run_id,
         status=final_status,
@@ -262,7 +446,7 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
         "trigger_type": trigger_type,
         "mode": mode,
         "status": final_status.value,
-        "total_domains": len(domains),
+        "total_sources": len(domain_results),
         "total_ads_scraped": total_scraped,
         "total_ads_new": total_new,
         "total_ads_updated": total_updated,
@@ -272,7 +456,7 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
     }
 
     logger.info(
-        f"배치 완료: domains={len(domains)}, "
+        f"배치 완료: sources={len(domain_results)}, "
         f"scraped={total_scraped}, new={total_new}, updated={total_updated}, "
         f"errors={len(errors)}"
     )

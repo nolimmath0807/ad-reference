@@ -12,13 +12,13 @@ import {
 import { CompetitorCard } from "@/components/competitor/CompetitorCard";
 import { AddCompetitorDialog } from "@/components/competitor/AddCompetitorDialog";
 import { api } from "@/lib/api-client";
-import type { MonitoredDomain, CompetitorStats } from "@/types/competitor";
+import type { Brand, BrandStats } from "@/types/competitor";
 
 type StatusFilter = "all" | "active" | "paused";
 type SortOption = "recent" | "name" | "most-ads";
 
 export function CompetitorsPage() {
-  const [stats, setStats] = useState<CompetitorStats[]>([]);
+  const [stats, setStats] = useState<BrandStats[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -28,10 +28,10 @@ export function CompetitorsPage() {
 
   const fetchCompetitors = useCallback(async () => {
     setLoading(true);
-    const res = await api.get<{ domains: MonitoredDomain[] }>("/monitored-domains");
-    const domains = res.domains;
-    const statsPromises = domains.map((domain) =>
-      api.get<CompetitorStats>(`/monitored-domains/${domain.id}/stats`)
+    const res = await api.get<{ brands: { brand: Brand; sources: unknown[] }[] }>("/brands");
+    const brands = res.brands;
+    const statsPromises = brands.map((entry) =>
+      api.get<BrandStats>(`/brands/${entry.brand.id}/stats`)
     );
     const allStats = await Promise.all(statsPromises);
     setStats(allStats);
@@ -43,11 +43,14 @@ export function CompetitorsPage() {
   }, [fetchCompetitors]);
 
   const totalAds = useMemo(() => stats.reduce((sum, s) => sum + s.total_ads, 0), [stats]);
-  const activeCount = useMemo(() => stats.filter((s) => s.domain_info.is_active).length, [stats]);
-  const pausedCount = useMemo(() => stats.filter((s) => !s.domain_info.is_active).length, [stats]);
+  const activeCount = useMemo(() => stats.filter((s) => s.brand.is_active).length, [stats]);
+  const pausedCount = useMemo(() => stats.filter((s) => !s.brand.is_active).length, [stats]);
 
   const platforms = useMemo(() => {
-    const set = new Set(stats.map((s) => s.domain_info.platform));
+    const set = new Set<string>();
+    stats.forEach((s) => {
+      s.sources.forEach((source) => set.add(source.platform));
+    });
     return Array.from(set).sort();
   }, [stats]);
 
@@ -55,18 +58,20 @@ export function CompetitorsPage() {
     let result = [...stats];
 
     if (statusFilter === "active") {
-      result = result.filter((s) => s.domain_info.is_active);
+      result = result.filter((s) => s.brand.is_active);
     } else if (statusFilter === "paused") {
-      result = result.filter((s) => !s.domain_info.is_active);
+      result = result.filter((s) => !s.brand.is_active);
     }
 
     if (platformFilter !== "all") {
-      result = result.filter((s) => s.domain_info.platform === platformFilter);
+      result = result.filter((s) =>
+        s.sources.some((source) => source.platform === platformFilter)
+      );
     }
 
     switch (sortOption) {
       case "name":
-        result.sort((a, b) => a.domain_info.domain.localeCompare(b.domain_info.domain));
+        result.sort((a, b) => a.brand.brand_name.localeCompare(b.brand.brand_name));
         break;
       case "most-ads":
         result.sort((a, b) => b.total_ads - a.total_ads);
@@ -74,8 +79,8 @@ export function CompetitorsPage() {
       case "recent":
       default:
         result.sort((a, b) => {
-          const dateA = a.domain_info.updated_at || a.domain_info.created_at;
-          const dateB = b.domain_info.updated_at || b.domain_info.created_at;
+          const dateA = a.brand.updated_at || a.brand.created_at;
+          const dateB = b.brand.updated_at || b.brand.created_at;
           return new Date(dateB).getTime() - new Date(dateA).getTime();
         });
         break;
@@ -198,7 +203,7 @@ export function CompetitorsPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredStats.map((s) => (
             <CompetitorCard
-              key={s.domain_info.id}
+              key={s.brand.id}
               stats={s}
               onDeleted={fetchCompetitors}
             />

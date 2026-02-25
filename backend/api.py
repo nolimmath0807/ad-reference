@@ -10,7 +10,7 @@ load_dotenv()
 from pathlib import Path as FilePath
 
 from pydantic import BaseModel, Field
-from fastapi import FastAPI, Depends, Query, Path, HTTPException, BackgroundTasks
+from fastapi import FastAPI, Depends, Query, Path, Body, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -572,6 +572,362 @@ async def api_monitored_domain_stats(
         "ads_by_format": ads_by_format,
         "ads_by_platform": ads_by_platform,
         "last_collected_at": last_collected_at,
+    }
+
+
+# ──────────────────────────────────────────────
+# Brands (JWT required)
+# ──────────────────────────────────────────────
+
+def _brand_row_to_dict(row) -> dict:
+    return {
+        "id": str(row[0]),
+        "brand_name": row[1],
+        "is_active": row[2],
+        "notes": row[3],
+        "created_at": row[4].isoformat() if row[4] else None,
+        "updated_at": row[5].isoformat() if row[5] else None,
+    }
+
+
+def _source_row_to_dict(row) -> dict:
+    return {
+        "id": str(row[0]),
+        "brand_id": str(row[1]),
+        "platform": row[2],
+        "source_type": row[3],
+        "source_value": row[4],
+        "is_active": row[5],
+        "created_at": row[6].isoformat() if row[6] else None,
+        "updated_at": row[7].isoformat() if row[7] else None,
+    }
+
+
+class BrandSourceRequest(BaseModel):
+    platform: str
+    source_type: str  # 'domain' | 'keyword'
+    source_value: str
+
+
+class BrandCreateRequest(BaseModel):
+    brand_name: str
+    notes: str | None = None
+    sources: list[BrandSourceRequest] = []
+
+
+class BrandUpdateRequest(BaseModel):
+    brand_name: str | None = None
+    is_active: bool | None = None
+    notes: str | None = None
+
+
+@app.post("/brands", status_code=201)
+async def api_create_brand(
+    req: BrandCreateRequest,
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        brand_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO brands (id, brand_name, is_active, notes)
+            VALUES (%s, %s, TRUE, %s)
+            RETURNING id, brand_name, is_active, notes, created_at, updated_at
+            """,
+            (brand_id, req.brand_name, req.notes),
+        )
+        brand_row = cur.fetchone()
+
+        sources = []
+        for s in req.sources:
+            source_id = str(uuid.uuid4())
+            cur.execute(
+                """
+                INSERT INTO brand_sources (id, brand_id, platform, source_type, source_value)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+                """,
+                (source_id, brand_id, s.platform, s.source_type, s.source_value),
+            )
+            sources.append(cur.fetchone())
+
+    return {"brand": _brand_row_to_dict(brand_row), "sources": [_source_row_to_dict(s) for s in sources]}
+
+
+@app.get("/brands")
+async def api_list_brands(user: dict = Depends(get_user)):
+    with get_db() as (conn, cur):
+        cur.execute("SELECT id, brand_name, is_active, notes, created_at, updated_at FROM brands ORDER BY created_at")
+        brand_rows = cur.fetchall()
+
+        brands = []
+        for br in brand_rows:
+            brand = _brand_row_to_dict(br)
+            cur.execute(
+                """
+                SELECT id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+                FROM brand_sources WHERE brand_id = %s ORDER BY created_at
+                """,
+                (brand["id"],),
+            )
+            sources = [_source_row_to_dict(s) for s in cur.fetchall()]
+            brands.append({"brand": brand, "sources": sources})
+
+    return {"brands": brands}
+
+
+@app.get("/brands/{brand_id}")
+async def api_get_brand(
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute(
+            "SELECT id, brand_name, is_active, notes, created_at, updated_at FROM brands WHERE id = %s",
+            (brand_id,),
+        )
+        brand_row = cur.fetchone()
+        if not brand_row:
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        cur.execute(
+            """
+            SELECT id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+            FROM brand_sources WHERE brand_id = %s ORDER BY created_at
+            """,
+            (brand_id,),
+        )
+        source_rows = cur.fetchall()
+
+    return {"brand": _brand_row_to_dict(brand_row), "sources": [_source_row_to_dict(s) for s in source_rows]}
+
+
+@app.put("/brands/{brand_id}")
+async def api_update_brand(
+    brand_id: str = Path(...),
+    req: BrandUpdateRequest = Body(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute("SELECT id FROM brands WHERE id = %s", (brand_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        updates = []
+        values = []
+        if req.brand_name is not None:
+            updates.append("brand_name = %s")
+            values.append(req.brand_name)
+        if req.is_active is not None:
+            updates.append("is_active = %s")
+            values.append(req.is_active)
+        if req.notes is not None:
+            updates.append("notes = %s")
+            values.append(req.notes)
+
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+
+        updates.append("updated_at = NOW()")
+        values.append(brand_id)
+
+        cur.execute(
+            f"UPDATE brands SET {', '.join(updates)} WHERE id = %s RETURNING id, brand_name, is_active, notes, created_at, updated_at",
+            values,
+        )
+        brand_row = cur.fetchone()
+
+    return _brand_row_to_dict(brand_row)
+
+
+@app.delete("/brands/{brand_id}")
+async def api_delete_brand(
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute("SELECT id FROM brands WHERE id = %s", (brand_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Brand not found")
+        cur.execute("DELETE FROM brand_sources WHERE brand_id = %s", (brand_id,))
+        cur.execute("DELETE FROM brands WHERE id = %s", (brand_id,))
+    return {"message": "Brand deleted"}
+
+
+@app.post("/brands/{brand_id}/sources", status_code=201)
+async def api_add_brand_source(
+    req: BrandSourceRequest,
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute("SELECT id FROM brands WHERE id = %s", (brand_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        source_id = str(uuid.uuid4())
+        cur.execute(
+            """
+            INSERT INTO brand_sources (id, brand_id, platform, source_type, source_value)
+            VALUES (%s, %s, %s, %s, %s)
+            RETURNING id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+            """,
+            (source_id, brand_id, req.platform, req.source_type, req.source_value),
+        )
+        row = cur.fetchone()
+
+    return _source_row_to_dict(row)
+
+
+@app.delete("/brands/{brand_id}/sources/{source_id}")
+async def api_delete_brand_source(
+    brand_id: str = Path(...),
+    source_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute("SELECT id FROM brand_sources WHERE id = %s AND brand_id = %s", (source_id, brand_id))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Source not found")
+        cur.execute("DELETE FROM brand_sources WHERE id = %s AND brand_id = %s", (source_id, brand_id))
+    return {"message": "Source deleted"}
+
+
+@app.get("/brands/{brand_id}/stats")
+async def api_brand_stats(
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    with get_db() as (conn, cur):
+        cur.execute(
+            "SELECT id, brand_name, is_active, notes, created_at, updated_at FROM brands WHERE id = %s",
+            (brand_id,),
+        )
+        brand_row = cur.fetchone()
+        if not brand_row:
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        cur.execute(
+            """
+            SELECT id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+            FROM brand_sources WHERE brand_id = %s
+            """,
+            (brand_id,),
+        )
+        source_rows = cur.fetchall()
+
+        cur.execute("SELECT COUNT(*) FROM ads WHERE brand_id = %s", (brand_id,))
+        total_ads = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT format, COUNT(*) FROM ads WHERE brand_id = %s AND format IS NOT NULL GROUP BY format",
+            (brand_id,),
+        )
+        ads_by_format = {row[0]: row[1] for row in cur.fetchall()}
+
+        cur.execute(
+            "SELECT platform, COUNT(*) FROM ads WHERE brand_id = %s AND platform IS NOT NULL GROUP BY platform",
+            (brand_id,),
+        )
+        ads_by_platform = {row[0]: row[1] for row in cur.fetchall()}
+
+        cur.execute("SELECT MAX(saved_at) FROM ads WHERE brand_id = %s", (brand_id,))
+        last_row = cur.fetchone()
+        last_collected_at = last_row[0].isoformat() if last_row and last_row[0] else None
+
+    return {
+        "brand": _brand_row_to_dict(brand_row),
+        "sources": [_source_row_to_dict(s) for s in source_rows],
+        "total_ads": total_ads,
+        "ads_by_format": ads_by_format,
+        "ads_by_platform": ads_by_platform,
+        "last_collected_at": last_collected_at,
+    }
+
+
+@app.get("/brands/{brand_id}/ads")
+async def api_brand_ads(
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+    platform: str = Query(default="all"),
+    format: str = Query(default="all"),
+    sort: str = Query(default="recent"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    keyword: str = Query(default=""),
+    date_from: str = Query(default=""),
+    date_to: str = Query(default=""),
+):
+    with get_db() as (conn, cur):
+        # Verify brand exists
+        cur.execute("SELECT id FROM brands WHERE id = %s", (brand_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        conditions = ["brand_id = %s"]
+        params: list = [brand_id]
+
+        # Thumbnail filters (same as monitored-domains)
+        conditions.append("thumbnail_url != ''")
+        conditions.append("thumbnail_url NOT LIKE '%%.html%%'")
+
+        if platform != "all":
+            conditions.append("platform = %s")
+            params.append(platform)
+        if format == "all":
+            conditions.append("format != 'text'")
+        else:
+            conditions.append("format = %s")
+            params.append(format)
+
+        if keyword:
+            conditions.append("(advertiser_name ILIKE %s OR ad_copy ILIKE %s)")
+            params.extend([f"%{keyword}%", f"%{keyword}%"])
+        if date_from:
+            conditions.append("saved_at >= %s::date")
+            params.append(date_from)
+        if date_to:
+            conditions.append("saved_at <= %s::date + interval '1 day'")
+            params.append(date_to)
+
+        where = " AND ".join(conditions)
+        order = "saved_at DESC" if sort == "recent" else "saved_at ASC"
+        offset = (page - 1) * limit
+
+        cur.execute(f"SELECT COUNT(*) FROM ads WHERE {where}", params)
+        total = cur.fetchone()[0]
+
+        cur.execute(
+            f"""
+            SELECT id, platform, format, advertiser_name, advertiser_handle,
+                   advertiser_avatar_url, thumbnail_url, preview_url, media_type,
+                   ad_copy, cta_text, likes, comments, shares,
+                   start_date, end_date, tags, landing_page_url, domain,
+                   created_at, saved_at
+            FROM ads
+            WHERE {where}
+            ORDER BY {order}
+            LIMIT %s OFFSET %s
+            """,
+            params + [limit, offset],
+        )
+        cols = [desc[0] for desc in cur.description]
+        items = []
+        for r in cur.fetchall():
+            d = dict(zip(cols, r))
+            for k, v in d.items():
+                if hasattr(v, "isoformat"):
+                    d[k] = v.isoformat()
+                elif isinstance(v, uuid.UUID):
+                    d[k] = str(v)
+            items.append(d)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "has_next": (page * limit) < total,
     }
 
 

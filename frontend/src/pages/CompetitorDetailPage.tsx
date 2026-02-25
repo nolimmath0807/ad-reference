@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ExternalLink, Activity, ImageIcon, Play, Clock } from "lucide-react";
+import { ExternalLink, Pencil, Activity, ImageIcon, Play, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,17 +15,22 @@ import { SearchBar } from "@/components/dashboard/SearchBar";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { AdGrid } from "@/components/dashboard/AdGrid";
 import { AdDetailModal } from "@/components/ad/AdDetailModal";
+import { EditBrandDialog } from "@/components/competitor/EditBrandDialog";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import type { Ad, AdSearchParams, AdSearchResponse, PlatformType, FormatType, SortType } from "@/types/ad";
-import type { CompetitorStats } from "@/types/competitor";
+import type { BrandStats } from "@/types/competitor";
 
-const platformColors: Record<string, string> = {
-  google: "bg-red-500 text-white",
-  meta: "bg-blue-500 text-white",
-  tiktok: "bg-neutral-900 text-white",
-  instagram: "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white",
-  all: "bg-neutral-500 text-white",
+const PLATFORM_COLORS: Record<string, string> = {
+  google: "bg-blue-500/10 text-blue-600",
+  meta: "bg-indigo-500/10 text-indigo-600",
+  tiktok: "bg-neutral-900/10 text-neutral-800",
+};
+
+const PLATFORM_DOT_COLORS: Record<string, string> = {
+  google: "bg-blue-500",
+  meta: "bg-indigo-500",
+  tiktok: "bg-neutral-800",
 };
 
 const FORMAT_COLORS: Record<string, string> = {
@@ -61,26 +66,27 @@ function formatRelativeTime(dateStr: string | null): string {
 export function CompetitorDetailPage() {
   const { id } = useParams<{ id: string }>();
 
-  const [stats, setStats] = useState<CompetitorStats | null>(null);
+  const [stats, setStats] = useState<BrandStats | null>(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [searchParams, setSearchParams] = useState<AdSearchParams>(DEFAULT_PARAMS);
   const [ads, setAds] = useState<Ad[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Fetch competitor stats
+  // Fetch brand stats
   useEffect(() => {
     if (!id) return;
-    api.get<CompetitorStats>(`/monitored-domains/${id}/stats`).then(setStats);
+    api.get<BrandStats>(`/brands/${id}/stats`).then(setStats);
   }, [id]);
 
-  // Fetch competitor ads
+  // Fetch brand ads
   const fetchAds = useCallback(
     async (params: AdSearchParams, append = false) => {
       if (!id) return;
       setLoading(true);
       const data = await api.get<AdSearchResponse>(
-        `/monitored-domains/${id}/ads`,
+        `/brands/${id}/ads`,
         params as Record<string, string | number | boolean | undefined>
       );
       setAds((prev) => (append ? [...prev, ...data.items] : data.items));
@@ -141,11 +147,14 @@ export function CompetitorDetailPage() {
     fetchAds(nextParams, true);
   };
 
-  const domain_info = stats?.domain_info;
-  const domain = domain_info?.domain ?? "Loading...";
+  const brandName = stats?.brand.brand_name ?? "Loading...";
   const imageCount = stats?.ads_by_format?.image ?? 0;
   const videoCount = stats?.ads_by_format?.video ?? 0;
   const totalAds = stats?.total_ads ?? 0;
+
+  const googleSource = stats?.sources.find(
+    (s) => s.platform === "google" && s.source_type === "domain"
+  );
 
   return (
     <div className="space-y-8">
@@ -159,7 +168,7 @@ export function CompetitorDetailPage() {
           </BreadcrumbItem>
           <BreadcrumbSeparator />
           <BreadcrumbItem>
-            <BreadcrumbPage>{domain}</BreadcrumbPage>
+            <BreadcrumbPage>{brandName}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -169,13 +178,8 @@ export function CompetitorDetailPage() {
         <div className="flex items-start justify-between">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight">{domain}</h1>
-              {domain_info && (
-                <Badge className={platformColors[domain_info.platform] ?? platformColors.all}>
-                  {domain_info.platform}
-                </Badge>
-              )}
-              {domain_info?.is_active && (
+              <h1 className="text-2xl font-bold tracking-tight">{brandName}</h1>
+              {stats?.brand.is_active && (
                 <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
                   <span className="relative flex size-2">
                     <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -185,15 +189,37 @@ export function CompetitorDetailPage() {
                 </span>
               )}
             </div>
-            {domain_info?.notes && (
-              <p className="text-sm text-muted-foreground">{domain_info.notes}</p>
+            {/* Source badges */}
+            {stats && stats.sources.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {stats.sources.map((source) => (
+                  <Badge key={source.id} variant="outline" className="text-xs">
+                    <span
+                      className={`size-2 rounded-full mr-1.5 ${PLATFORM_DOT_COLORS[source.platform] ?? "bg-neutral-400"}`}
+                    />
+                    {source.platform === "google"
+                      ? source.source_value
+                      : `${source.platform}: ${source.source_value}`}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {stats?.brand.notes && (
+              <p className="text-sm text-muted-foreground">{stats.brand.notes}</p>
             )}
           </div>
-          <Button variant="outline" size="sm" asChild>
-            <a href={`https://${domain_info?.domain}`} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="size-3.5 mr-1.5" /> Visit site
-            </a>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowEditDialog(true)}>
+              <Pencil className="size-3.5 mr-1.5" /> Edit
+            </Button>
+            {googleSource && (
+              <Button variant="outline" size="sm" asChild>
+                <a href={`https://${googleSource.source_value}`} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="size-3.5 mr-1.5" /> Visit site
+                </a>
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -344,6 +370,18 @@ export function CompetitorDetailPage() {
         onAdClick={handleAdClick}
         onLoadMore={handleLoadMore}
       />
+
+      {/* Edit brand dialog */}
+      {stats && (
+        <EditBrandDialog
+          stats={stats}
+          open={showEditDialog}
+          onOpenChange={setShowEditDialog}
+          onSuccess={() => {
+            api.get<BrandStats>(`/brands/${id}/stats`).then(setStats);
+          }}
+        />
+      )}
 
       {/* Ad detail modal */}
       <AdDetailModal

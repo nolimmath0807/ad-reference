@@ -49,6 +49,7 @@ class PlatformAd(BaseModel):
     domain: str = ""
     raw_data: dict = {}
     creative_id: str | None = None
+    brand_id: str | None = None
 
 
 class MonitoredDomain(BaseModel):
@@ -88,6 +89,44 @@ class DomainScrapeResult(BaseModel):
     ads_updated: int = 0
     duration_seconds: float = 0
     error: Optional[str] = None
+
+
+class Brand(BaseModel):
+    id: str | None = None
+    brand_name: str
+    is_active: bool = True
+    notes: str | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class BrandSource(BaseModel):
+    id: str | None = None
+    brand_id: str
+    platform: str  # 'google' | 'meta' | 'tiktok'
+    source_type: str  # 'domain' | 'keyword'
+    source_value: str
+    is_active: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+class BrandWithSources(BaseModel):
+    """Brand with its sources list"""
+    brand: Brand
+    sources: list[BrandSource] = []
+
+
+class BrandSourceScrapeResult(BaseModel):
+    source_id: str
+    platform: str
+    source_type: str
+    source_value: str
+    ads_scraped: int = 0
+    ads_new: int = 0
+    ads_updated: int = 0
+    duration_seconds: float = 0
+    error: str | None = None
 
 
 def main() -> dict:

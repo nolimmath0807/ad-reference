@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -20,7 +20,12 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
-import type { MonitoredDomain, MonitoredDomainCreateRequest } from "@/types/competitor";
+import type { Brand, BrandCreateRequest } from "@/types/competitor";
+
+interface SourceRow {
+  platform: string;
+  source_value: string;
+}
 
 interface AddCompetitorDialogProps {
   open: boolean;
@@ -28,31 +33,71 @@ interface AddCompetitorDialogProps {
   onSuccess: () => void;
 }
 
+const PLATFORM_INPUT_CONFIG: Record<string, { label: string; placeholder: string }> = {
+  google: { label: "Domain", placeholder: "nike.com" },
+  meta: { label: "Search Keyword", placeholder: "Nike" },
+  tiktok: { label: "Search Keyword", placeholder: "Nike" },
+};
+
+function makeEmptySource(): SourceRow {
+  return { platform: "google", source_value: "" };
+}
+
 export function AddCompetitorDialog({ open, onOpenChange, onSuccess }: AddCompetitorDialogProps) {
-  const [form, setForm] = useState<MonitoredDomainCreateRequest>({
-    domain: "",
-    platform: "google",
-    notes: "",
-  });
+  const [brandName, setBrandName] = useState("");
+  const [notes, setNotes] = useState("");
+  const [sources, setSources] = useState<SourceRow[]>([makeEmptySource()]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const addSource = () => {
+    setSources((prev) => [...prev, makeEmptySource()]);
+  };
+
+  const removeSource = (index: number) => {
+    setSources((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const updateSource = (index: number, updates: Partial<SourceRow>) => {
+    setSources((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, ...updates } : s))
+    );
+  };
+
+  const isValid =
+    brandName.trim().length > 0 &&
+    sources.length > 0 &&
+    sources.every((s) => s.source_value.trim().length > 0);
+
+  const resetForm = () => {
+    setBrandName("");
+    setNotes("");
+    setSources([makeEmptySource()]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+
+    const payload: BrandCreateRequest = {
+      brand_name: brandName.trim(),
+      notes: notes.trim() || undefined,
+      sources: sources.map((s) => ({
+        platform: s.platform,
+        source_type: s.platform === "google" ? "domain" : "keyword",
+        source_value: s.source_value.trim(),
+      })),
+    };
+
     try {
-      await api.post<MonitoredDomain>("/monitored-domains", {
-        domain: form.domain,
-        platform: form.platform,
-        notes: form.notes || undefined,
-      });
-      toast.success(`"${form.domain}" has been added to monitoring.`);
-      setForm({ domain: "", platform: "google", notes: "" });
+      await api.post<Brand>("/brands", payload);
+      toast.success(`"${brandName.trim()}" has been added to monitoring.`);
+      resetForm();
       onOpenChange(false);
       onSuccess();
     } catch (err: unknown) {
       const error = err as { status?: number };
       if (error.status === 409) {
-        toast.error("This domain is already being monitored.");
+        toast.error("This brand is already being monitored.");
       } else {
         toast.error("Failed to add competitor. Please try again.");
       }
@@ -63,52 +108,110 @@ export function AddCompetitorDialog({ open, onOpenChange, onSuccess }: AddCompet
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add competitor</DialogTitle>
             <DialogDescription>
-              Add a domain to monitor their ad activity across platforms.
+              Add a brand and its tracking sources to monitor ad activity across platforms.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="mt-4 flex flex-col gap-4">
+          <div className="mt-4 flex flex-col gap-5">
+            {/* Brand Name */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="competitor-domain">Domain</Label>
+              <Label htmlFor="brand-name">Brand Name</Label>
               <Input
-                id="competitor-domain"
-                placeholder="e.g. example.com"
-                value={form.domain}
-                onChange={(e) => setForm({ ...form, domain: e.target.value })}
+                id="brand-name"
+                placeholder="e.g. Nike, Adidas"
+                value={brandName}
+                onChange={(e) => setBrandName(e.target.value)}
                 required
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="competitor-platform">Platform</Label>
-              <Select
-                value={form.platform ?? "google"}
-                onValueChange={(value) => setForm({ ...form, platform: value })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select platform" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="google">Google</SelectItem>
-                  <SelectItem value="meta">Meta</SelectItem>
-                  <SelectItem value="tiktok">TikTok</SelectItem>
-                  <SelectItem value="instagram">Instagram</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Sources */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <Label>Tracking Sources</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={addSource}
+                >
+                  <Plus className="size-3" />
+                  Add Source
+                </Button>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                {sources.map((source, index) => {
+                  const config = PLATFORM_INPUT_CONFIG[source.platform] ?? PLATFORM_INPUT_CONFIG.google;
+                  return (
+                    <div key={index} className="flex items-end gap-2">
+                      <div className="w-[130px] shrink-0">
+                        {index === 0 && (
+                          <Label className="mb-1.5 block text-xs text-muted-foreground">Platform</Label>
+                        )}
+                        <Select
+                          value={source.platform}
+                          onValueChange={(value) =>
+                            updateSource(index, { platform: value, source_value: "" })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="google">Google</SelectItem>
+                            <SelectItem value="meta">Meta</SelectItem>
+                            <SelectItem value="tiktok">TikTok</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="flex-1">
+                        {index === 0 && (
+                          <Label className="mb-1.5 block text-xs text-muted-foreground">
+                            {config.label}
+                          </Label>
+                        )}
+                        <Input
+                          placeholder={config.placeholder}
+                          value={source.source_value}
+                          onChange={(e) =>
+                            updateSource(index, { source_value: e.target.value })
+                          }
+                        />
+                      </div>
+
+                      {sources.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          className="mb-0.5 shrink-0"
+                          onClick={() => removeSource(index)}
+                        >
+                          <X className="size-3.5 text-muted-foreground" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
+            {/* Notes */}
             <div className="flex flex-col gap-2">
-              <Label htmlFor="competitor-notes">Notes (optional)</Label>
+              <Label htmlFor="brand-notes">Notes (optional)</Label>
               <textarea
-                id="competitor-notes"
+                id="brand-notes"
                 placeholder="Why are you monitoring this competitor?"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
               />
@@ -124,7 +227,7 @@ export function AddCompetitorDialog({ open, onOpenChange, onSuccess }: AddCompet
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting || !form.domain.trim()}>
+            <Button type="submit" disabled={isSubmitting || !isValid}>
               {isSubmitting && <Loader2 className="animate-spin" />}
               Add competitor
             </Button>

@@ -152,6 +152,68 @@ def migrate():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_monitored_domains_active ON monitored_domains(is_active, platform)")
 
+    # 9. brands table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS brands (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            brand_name VARCHAR(255) NOT NULL UNIQUE,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            notes TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+
+    # 10. brand_sources table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS brand_sources (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            brand_id UUID NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+            platform VARCHAR(20) NOT NULL,
+            source_type VARCHAR(20) NOT NULL,
+            source_value VARCHAR(255) NOT NULL,
+            is_active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(brand_id, platform, source_value)
+        )
+    """)
+
+    # 11. ads table - add brand_id column
+    cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS brand_id UUID REFERENCES brands(id) ON DELETE SET NULL")
+
+    # Brand-related indexes
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_brand_id ON ads(brand_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_brand_sources_brand ON brand_sources(brand_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_brand_sources_platform ON brand_sources(platform, is_active)")
+
+    # 12. Data migration: monitored_domains -> brands + brand_sources
+    # Step 1: Create brands from monitored_domains
+    cur.execute("""
+        INSERT INTO brands (id, brand_name, is_active, notes, created_at, updated_at)
+        SELECT id, domain, is_active, notes, created_at, updated_at
+        FROM monitored_domains
+        ON CONFLICT (brand_name) DO NOTHING
+    """)
+
+    # Step 2: Create brand_sources from monitored_domains
+    cur.execute("""
+        INSERT INTO brand_sources (brand_id, platform, source_type, source_value)
+        SELECT id, platform, 'domain', domain
+        FROM monitored_domains
+        ON CONFLICT (brand_id, platform, source_value) DO NOTHING
+    """)
+
+    # Step 3: Backfill ads.brand_id from brand_sources
+    cur.execute("""
+        UPDATE ads SET brand_id = bs.brand_id
+        FROM brand_sources bs
+        WHERE ads.brand_id IS NULL
+          AND ads.domain IS NOT NULL
+          AND bs.source_type = 'domain'
+          AND REPLACE(LOWER(ads.domain), 'www.', '') = REPLACE(LOWER(bs.source_value), 'www.', '')
+    """)
+
     conn.commit()
     cur.close()
     conn.close()
