@@ -12,7 +12,7 @@ import {
 import { CompetitorCard } from "@/components/competitor/CompetitorCard";
 import { AddCompetitorDialog } from "@/components/competitor/AddCompetitorDialog";
 import { api } from "@/lib/api-client";
-import type { Brand, BrandStats } from "@/types/competitor";
+import type { BrandStats } from "@/types/competitor";
 
 type StatusFilter = "all" | "active" | "paused";
 type SortOption = "recent" | "name" | "most-ads";
