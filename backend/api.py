@@ -48,7 +48,11 @@ from utils.auth_helper import get_current_user
 
 app = FastAPI(title="Ad Reference API", version="1.0.0")
 
-_default_origins = ["http://localhost:5173", "http://localhost:3000"]
+_default_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "https://frontend-production-af3f.up.railway.app",
+]
 _extra_origins = os.getenv("ALLOWED_ORIGINS", "")
 _origins = _default_origins + [o.strip() for o in _extra_origins.split(",") if o.strip()]
 
