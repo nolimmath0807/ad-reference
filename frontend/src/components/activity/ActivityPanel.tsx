@@ -31,6 +31,19 @@ const PAGE_SIZE = 20;
 const POLL_INTERVAL = 60_000;
 const LAST_SEEN_KEY = "activity-last-seen";
 
+function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  const now = new Date();
+  const MM = String(date.getMonth() + 1).padStart(2, "0");
+  const DD = String(date.getDate()).padStart(2, "0");
+  const HH = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${MM}/${DD} ${HH}:${mm}`;
+  }
+  return `${date.getFullYear()}/${MM}/${DD} ${HH}:${mm}`;
+}
+
 export function ActivityPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -214,9 +227,10 @@ export function ActivityPanel() {
                       </p>
                     )}
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {timeAgo(log.created_at)}
-                  </span>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-muted-foreground">{timeAgo(log.created_at)}</p>
+                    <p className="text-[10px] text-muted-foreground/60">{formatDateTime(log.created_at)}</p>
+                  </div>
                 </div>
               );
             })}
