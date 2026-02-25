@@ -11,13 +11,13 @@ const DEFAULT_PARAMS: AdSearchParams = {
   platform: "all",
   format: "all",
   sort: "recent",
-  page: 1,
   limit: 20,
 };
 
 export function DashboardPage() {
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [searchParams, setSearchParams] = useState<AdSearchParams>(DEFAULT_PARAMS);
+  const [page, setPage] = useState(1);
   const [ads, setAds] = useState<Ad[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -38,11 +38,13 @@ export function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetchAds(searchParams);
+    setPage(1);
+    setAds([]);
+    fetchAds({ ...searchParams, page: 1 });
   }, [searchParams, fetchAds]);
 
   const updateParams = (updates: Partial<AdSearchParams>) => {
-    setSearchParams((prev) => ({ ...prev, ...updates, page: 1 }));
+    setSearchParams((prev) => ({ ...prev, ...updates }));
   };
 
   const handleSearch = (keyword: string) => {
@@ -81,12 +83,12 @@ export function DashboardPage() {
     setSelectedAd(ad);
   };
 
-  const handleLoadMore = () => {
-    const nextPage = (searchParams.page ?? 1) + 1;
-    const nextParams = { ...searchParams, page: nextPage };
-    setSearchParams(nextParams);
-    fetchAds(nextParams, true);
-  };
+  const handleLoadMore = useCallback(() => {
+    if (loading || !hasNext) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchAds({ ...searchParams, page: nextPage }, true);
+  }, [page, searchParams, loading, hasNext, fetchAds]);
 
   return (
     <div className="space-y-6">

@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { Heart, MessageCircle, Share2, ImageIcon, ImageOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Heart, MessageCircle, Share2, ImageIcon, ImageOff, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Ad } from "@/types/ad";
 
@@ -80,6 +79,22 @@ function AdCardSkeleton() {
 }
 
 export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridProps) {
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!hasNext || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          onLoadMore();
+        }
+      },
+      { rootMargin: "200px" },
+    );
+    if (sentinelRef.current) observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
+  }, [hasNext, loading, onLoadMore]);
+
   if (loading && ads.length === 0) {
     return (
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
@@ -172,17 +187,13 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
         ))}
       </div>
 
-      {/* Load more */}
-      {hasNext && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={onLoadMore}
-            disabled={loading}
-            className="min-w-[160px]"
-          >
-            {loading ? "Loading..." : "Load more"}
-          </Button>
+      {/* Sentinel for infinite scroll */}
+      <div ref={sentinelRef} />
+
+      {/* Loading spinner while fetching more */}
+      {loading && ads.length > 0 && (
+        <div className="flex justify-center py-4">
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
         </div>
       )}
     </div>
