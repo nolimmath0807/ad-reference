@@ -28,12 +28,7 @@ export function CompetitorsPage() {
 
   const fetchCompetitors = useCallback(async () => {
     setLoading(true);
-    const res = await api.get<{ brands: { brand: Brand; sources: unknown[] }[] }>("/brands");
-    const brands = res.brands;
-    const statsPromises = brands.map((entry) =>
-      api.get<BrandStats>(`/brands/${entry.brand.id}/stats`)
-    );
-    const allStats = await Promise.all(statsPromises);
+    const allStats = await api.get<BrandStats[]>("/brands/all-stats");
     setStats(allStats);
     setLoading(false);
   }, []);

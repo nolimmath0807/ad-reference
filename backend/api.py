@@ -682,6 +682,81 @@ async def api_list_brands(user: dict = Depends(get_user)):
     return {"brands": brands}
 
 
+@app.get("/brands/all-stats")
+async def api_all_brand_stats(user: dict = Depends(get_user)):
+    with get_db() as (conn, cur):
+        # 1. All brands
+        cur.execute("SELECT id, brand_name, is_active, notes, created_at, updated_at FROM brands ORDER BY created_at")
+        brand_rows = cur.fetchall()
+
+        if not brand_rows:
+            return []
+
+        brand_ids = [str(r[0]) for r in brand_rows]
+
+        # 2. All sources for all brands (single query)
+        cur.execute("""
+            SELECT id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
+            FROM brand_sources WHERE brand_id = ANY(%s::uuid[])
+        """, (brand_ids,))
+        source_rows = cur.fetchall()
+
+        # 3. Ad counts per brand (single query)
+        cur.execute("""
+            SELECT brand_id, COUNT(*) FROM ads WHERE brand_id = ANY(%s::uuid[]) GROUP BY brand_id
+        """, (brand_ids,))
+        total_map = {str(r[0]): r[1] for r in cur.fetchall()}
+
+        # 4. Ad counts by format per brand (single query)
+        cur.execute("""
+            SELECT brand_id, format, COUNT(*) FROM ads
+            WHERE brand_id = ANY(%s::uuid[]) AND format IS NOT NULL
+            GROUP BY brand_id, format
+        """, (brand_ids,))
+        format_map = {}
+        for r in cur.fetchall():
+            bid = str(r[0])
+            if bid not in format_map:
+                format_map[bid] = {}
+            format_map[bid][r[1]] = r[2]
+
+        # 5. Build response
+        results = []
+        sources_by_brand = {}
+        for sr in source_rows:
+            bid = str(sr[1])
+            if bid not in sources_by_brand:
+                sources_by_brand[bid] = []
+            sources_by_brand[bid].append({
+                "id": str(sr[0]),
+                "brand_id": bid,
+                "platform": sr[2],
+                "source_type": sr[3],
+                "source_value": sr[4],
+                "is_active": sr[5],
+                "created_at": sr[6].isoformat() if sr[6] else None,
+                "updated_at": sr[7].isoformat() if sr[7] else None,
+            })
+
+        for br in brand_rows:
+            bid = str(br[0])
+            results.append({
+                "brand": {
+                    "id": bid,
+                    "brand_name": br[1],
+                    "is_active": br[2],
+                    "notes": br[3],
+                    "created_at": br[4].isoformat() if br[4] else None,
+                    "updated_at": br[5].isoformat() if br[5] else None,
+                },
+                "sources": sources_by_brand.get(bid, []),
+                "total_ads": total_map.get(bid, 0),
+                "ads_by_format": format_map.get(bid, {}),
+            })
+
+        return results
+
+
 @app.get("/brands/{brand_id}")
 async def api_get_brand(
     brand_id: str = Path(...),
