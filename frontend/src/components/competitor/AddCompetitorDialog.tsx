@@ -39,6 +39,19 @@ const PLATFORM_INPUT_CONFIG: Record<string, { label: string; placeholder: string
   tiktok: { label: "Search Keyword", placeholder: "Nike" },
 };
 
+function parseMetaPageId(input: string): string {
+  const trimmed = input.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    const pageId = url.searchParams.get("view_all_page_id") || url.searchParams.get("id");
+    if (pageId) return pageId;
+  } catch {
+    // not a URL, return as-is
+  }
+  return trimmed;
+}
+
 function makeEmptySource(): SourceRow {
   return { platform: "google", source_value: "" };
 }
@@ -181,9 +194,10 @@ export function AddCompetitorDialog({ open, onOpenChange, onSuccess }: AddCompet
                         <Input
                           placeholder={config.placeholder}
                           value={source.source_value}
-                          onChange={(e) =>
-                            updateSource(index, { source_value: e.target.value })
-                          }
+                          onChange={(e) => {
+                            const value = source.platform === "meta" ? parseMetaPageId(e.target.value) : e.target.value;
+                            updateSource(index, { source_value: value });
+                          }}
                         />
                       </div>
 

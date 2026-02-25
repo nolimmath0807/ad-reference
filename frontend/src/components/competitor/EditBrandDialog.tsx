@@ -48,6 +48,19 @@ const PLATFORM_INPUT_CONFIG: Record<string, { label: string; placeholder: string
   tiktok: { label: "Search Keyword", placeholder: "Nike" },
 };
 
+function parseMetaPageId(input: string): string {
+  const trimmed = input.trim();
+  if (/^\d+$/.test(trimmed)) return trimmed;
+  try {
+    const url = new URL(trimmed);
+    const pageId = url.searchParams.get("view_all_page_id") || url.searchParams.get("id");
+    if (pageId) return pageId;
+  } catch {
+    // not a URL, return as-is
+  }
+  return trimmed;
+}
+
 export function EditBrandDialog({ stats, open, onOpenChange, onSuccess }: EditBrandDialogProps) {
   const [brandName, setBrandName] = useState(stats.brand.brand_name);
   const [notes, setNotes] = useState(stats.brand.notes ?? "");
@@ -188,14 +201,14 @@ export function EditBrandDialog({ stats, open, onOpenChange, onSuccess }: EditBr
                   key={source.id}
                   className="flex items-center justify-between rounded-lg border bg-muted/30 px-3 py-2"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <Badge
                       variant="secondary"
                       className={`text-[10px] ${PLATFORM_COLORS[source.platform] ?? "bg-neutral-500/10 text-neutral-600"}`}
                     >
                       {source.platform}
                     </Badge>
-                    <span className="text-sm">{source.source_value}</span>
+                    <span className="text-sm truncate" title={source.source_value}>{source.source_value}</span>
                   </div>
                   <Button
                     type="button"
@@ -241,7 +254,10 @@ export function EditBrandDialog({ stats, open, onOpenChange, onSuccess }: EditBr
                 <Input
                   placeholder={newConfig.placeholder}
                   value={newSourceValue}
-                  onChange={(e) => setNewSourceValue(e.target.value)}
+                  onChange={(e) => {
+                    const value = newPlatform === "meta" ? parseMetaPageId(e.target.value) : e.target.value;
+                    setNewSourceValue(value);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && canAddSource && !isAddingSource) {
                       e.preventDefault();
