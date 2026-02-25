@@ -14,7 +14,6 @@ const PLATFORM_TABS: { value: FilterTab; label: string }[] = [
   { value: "meta", label: "Meta" },
   { value: "google", label: "Google" },
   { value: "tiktok", label: "TikTok" },
-  { value: "instagram", label: "Instagram" },
 ];
 
 export function BoardDetailPage() {
@@ -44,7 +43,7 @@ export function BoardDetailPage() {
   if (!board) return null;
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="mx-auto w-full px-6 py-8">
       <BoardHeader board={board} />
 
       <div className="mt-6">

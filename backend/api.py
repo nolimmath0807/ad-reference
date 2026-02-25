@@ -302,11 +302,6 @@ async def api_platforms_status(user: dict = Depends(get_user)):
             status=Status.active if os.environ.get("TIKTOK_API_KEY") else Status.unavailable,
             message="TikTok Creative Center 연동" if os.environ.get("TIKTOK_API_KEY") else None,
         ),
-        PlatformStatus(
-            platform=PlatformType.instagram,
-            status=Status.active if os.environ.get("META_ACCESS_TOKEN") else Status.unavailable,
-            message="Instagram (Meta API) 연동" if os.environ.get("META_ACCESS_TOKEN") else None,
-        ),
     ]
     return {"platforms": [p.model_dump(mode="json") for p in platforms]}
 

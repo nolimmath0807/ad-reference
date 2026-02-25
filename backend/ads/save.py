@@ -124,7 +124,7 @@ def main(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Save an ad to DB")
-    parser.add_argument("--platform", required=True, help="Platform (meta|google|tiktok|instagram)")
+    parser.add_argument("--platform", required=True, help="Platform (meta|google|tiktok)")
     parser.add_argument("--format", required=True, help="Format (image|video|carousel|reels)")
     parser.add_argument("--advertiser-name", required=True, help="Advertiser name")
     parser.add_argument("--thumbnail-url", required=True, help="Thumbnail URL")

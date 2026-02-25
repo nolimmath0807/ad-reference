@@ -220,7 +220,7 @@ export function CompetitorDetailPage() {
       {/* Stats Dashboard */}
       {stats && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
             {/* Total Ads */}
             <div className="rounded-2xl border bg-card/80 backdrop-blur-xl shadow-sm p-5 space-y-2">
               <div className="flex items-center gap-2 text-muted-foreground">

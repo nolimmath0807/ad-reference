@@ -12,7 +12,6 @@ class PlatformType(str, Enum):
     meta = "meta"
     google = "google"
     tiktok = "tiktok"
-    instagram = "instagram"
 
 
 class Status(str, Enum):

@@ -1,4 +1,4 @@
-export type PlatformType = "meta" | "google" | "tiktok" | "instagram";
+export type PlatformType = "meta" | "google" | "tiktok";
 export type FormatType = "image" | "video" | "carousel" | "reels" | "text";
 export type MediaType = "image" | "video" | "text";
 export type SortType = "recent" | "popular" | "engagement";

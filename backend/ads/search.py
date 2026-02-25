@@ -152,7 +152,7 @@ async def _fetch_from_platforms(
     results: list[PlatformAd] = []
 
     targets = []
-    if platform in ("all", "meta", "instagram"):
+    if platform in ("all", "meta"):
         targets.append("meta")
     if platform in ("all", "google"):
         targets.append("google")
@@ -255,7 +255,7 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Search ads across platforms")
     parser.add_argument("--keyword", default=None, help="Search keyword")
-    parser.add_argument("--platform", default="all", help="Platform filter (all|meta|google|tiktok|instagram)")
+    parser.add_argument("--platform", default="all", help="Platform filter (all|meta|google|tiktok)")
     parser.add_argument("--format", default="all", help="Format filter (all|image|video|carousel|reels)")
     parser.add_argument("--sort", default="recent", help="Sort order (recent|popular|engagement)")
     parser.add_argument("--date-from", default=None, help="Start date (YYYY-MM-DD)")

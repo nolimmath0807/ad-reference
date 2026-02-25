@@ -46,7 +46,6 @@ function InlineAdCard({
     meta: "bg-blue-100 text-blue-700",
     google: "bg-green-100 text-green-700",
     tiktok: "bg-pink-100 text-pink-700",
-    instagram: "bg-purple-100 text-purple-700",
   };
 
   return (
@@ -170,7 +169,7 @@ export function BoardItemGrid({ boardId, items, onItemRemoved }: BoardItemGridPr
   }
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
       {items.map((item) => (
         <InlineAdCard
           key={item.id}

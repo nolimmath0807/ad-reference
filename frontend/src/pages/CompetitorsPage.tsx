@@ -98,7 +98,7 @@ export function CompetitorsPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-6 py-8">
+    <div className="mx-auto w-full px-6 py-8">
       {/* Header */}
       <div className="mb-8 flex items-center justify-between">
         <div>

@@ -15,10 +15,6 @@ const platformStyles: Record<PlatformType, { label: string; className: string }>
   meta: { label: "Meta", className: "bg-blue-500 text-white" },
   google: { label: "Google", className: "bg-red-500 text-white" },
   tiktok: { label: "TikTok", className: "bg-neutral-900 text-white" },
-  instagram: {
-    label: "Instagram",
-    className: "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white",
-  },
 };
 
 const formatLabels: Record<FormatType, string> = {

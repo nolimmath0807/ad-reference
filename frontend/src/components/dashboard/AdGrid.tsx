@@ -17,7 +17,6 @@ const platformColors: Record<string, string> = {
   meta: "bg-blue-500/10 text-blue-600",
   google: "bg-green-500/10 text-green-600",
   tiktok: "bg-neutral-900/10 text-neutral-800",
-  instagram: "bg-pink-500/10 text-pink-600",
 };
 
 const formatLabels: Record<string, string> = {
@@ -83,7 +82,7 @@ function AdCardSkeleton() {
 export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridProps) {
   if (loading && ads.length === 0) {
     return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {Array.from({ length: 8 }).map((_, i) => (
           <AdCardSkeleton key={i} />
         ))}
@@ -105,7 +104,7 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {ads.map((ad) => (
           <button
             key={ad.id}

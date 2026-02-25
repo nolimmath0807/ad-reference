@@ -12,7 +12,6 @@ class Platform(str, Enum):
     meta = "meta"
     google = "google"
     tiktok = "tiktok"
-    instagram = "instagram"
 
 
 class Format(str, Enum):

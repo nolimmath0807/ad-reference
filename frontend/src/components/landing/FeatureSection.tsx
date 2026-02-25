@@ -5,7 +5,7 @@ const features = [
     icon: Globe,
     title: "멀티 플랫폼",
     description:
-      "Meta, Google, TikTok, Instagram 등 주요 광고 플랫폼의 크리에이티브를 한 곳에서 확인하세요.",
+      "Meta, Google, TikTok 등 주요 광고 플랫폼의 크리에이티브를 한 곳에서 확인하세요.",
   },
   {
     icon: Sparkles,

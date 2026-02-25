@@ -11,7 +11,6 @@ const platforms: { value: "all" | PlatformType; label: string }[] = [
   { value: "meta", label: "Meta" },
   { value: "google", label: "Google" },
   { value: "tiktok", label: "TikTok" },
-  { value: "instagram", label: "Instagram" },
 ];
 
 export function PlatformTabs({ activePlatform, onPlatformChange }: PlatformTabsProps) {

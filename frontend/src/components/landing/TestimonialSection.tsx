@@ -5,7 +5,6 @@ const platforms = [
   { name: "Meta", color: "#1877F2" },
   { name: "Google", color: "#4285F4" },
   { name: "TikTok", color: "#000000" },
-  { name: "Instagram", color: "#E4405F" },
 ]
 
 const testimonials = [

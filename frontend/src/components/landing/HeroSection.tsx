@@ -33,7 +33,7 @@ function HeroSection() {
 
           {/* Description */}
           <p className="mb-10 max-w-2xl text-lg text-muted-foreground lg:text-xl">
-            Meta, Google, TikTok, Instagram 광고 크리에이티브를
+            Meta, Google, TikTok 광고 크리에이티브를
             <br className="hidden sm:block" />
             AI가 자동으로 수집하고 정리합니다
           </p>
