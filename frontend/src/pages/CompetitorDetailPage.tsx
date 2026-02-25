@@ -21,12 +21,6 @@ import { cn } from "@/lib/utils";
 import type { Ad, AdSearchParams, AdSearchResponse, PlatformType, FormatType, SortType } from "@/types/ad";
 import type { BrandStats } from "@/types/competitor";
 
-const PLATFORM_COLORS: Record<string, string> = {
-  google: "bg-blue-500/10 text-blue-600",
-  meta: "bg-indigo-500/10 text-indigo-600",
-  tiktok: "bg-neutral-900/10 text-neutral-800",
-};
-
 const PLATFORM_DOT_COLORS: Record<string, string> = {
   google: "bg-blue-500",
   meta: "bg-indigo-500",
