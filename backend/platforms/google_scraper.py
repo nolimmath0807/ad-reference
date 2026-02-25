@@ -138,13 +138,13 @@ def collect_all_variants(page) -> list[dict]:
         function extractYtVideoId(src) {
             if (!src) return null;
             let m;
-            m = src.match(/ytimg\.com\/vi\/([a-zA-Z0-9_-]{11})/);
+            m = src.match(/ytimg\\.com\\/vi\\/([a-zA-Z0-9_-]{11})/);
             if (m) return m[1];
-            m = src.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+            m = src.match(/youtube\\.com\\/embed\\/([a-zA-Z0-9_-]{11})/);
             if (m) return m[1];
-            m = src.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/);
+            m = src.match(/youtube\\.com\\/watch\\?v=([a-zA-Z0-9_-]{11})/);
             if (m) return m[1];
-            m = src.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/);
+            m = src.match(/youtu\\.be\\/([a-zA-Z0-9_-]{11})/);
             if (m) return m[1];
             m = src.match(/[?&]video_id=([a-zA-Z0-9_-]{11})/);
             if (m) return m[1];
@@ -960,7 +960,7 @@ def scrape_google_ads_by_domain(
             if not ad_links:
                 logger.info("증분 수집: 신규 광고 없음, 스크래핑 종료")
                 browser.close()
-                return platform_ads
+                return []
 
         # 5. 각 상세 페이지 방문하여 광고 데이터 추출
         platform_ads: list[PlatformAd] = []
