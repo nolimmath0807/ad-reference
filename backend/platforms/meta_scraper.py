@@ -257,19 +257,9 @@ def raw_to_platform_ad(raw: dict) -> PlatformAd:
     )
 
 
-def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 12) -> list[PlatformAd]:
-    encoded_keyword = quote(keyword)
-    today = date.today()
-    three_months_ago = _THREE_MONTHS_AGO
-    url = (
-        f"https://www.facebook.com/ads/library/"
-        f"?active_status=active&ad_type=all&country=KR"
-        f"&q={encoded_keyword}&search_type=keyword_unordered"
-        f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
-        f"&start_date[max]={today.strftime('%Y-%m-%d')}"
-    )
-
-    logger.info(f"Meta Ad Library 스크래핑 시작: keyword='{keyword}', url={url[:120]}")
+def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 12) -> list[PlatformAd]:
+    """Shared Playwright browser logic for scraping Meta Ad Library URLs."""
+    logger.info(f"Meta Ad Library 스크래핑 시작: url={url[:120]}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -325,11 +315,63 @@ def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 12) 
     return platform_ads
 
 
-def main(keyword: str, headless: bool = True, max_results: int = 12) -> dict:
+def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 12) -> list[PlatformAd]:
+    encoded_keyword = quote(keyword)
+    today = date.today()
+    three_months_ago = _THREE_MONTHS_AGO
+    url = (
+        f"https://www.facebook.com/ads/library/"
+        f"?active_status=active&ad_type=all&country=KR"
+        f"&q={encoded_keyword}&search_type=keyword_unordered"
+        f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
+        f"&start_date[max]={today.strftime('%Y-%m-%d')}"
+    )
+    return _scrape_meta_url(url, headless, max_results)
+
+
+def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 30) -> list[PlatformAd]:
+    today = date.today()
+    three_months_ago = _THREE_MONTHS_AGO
+    url = (
+        f"https://www.facebook.com/ads/library/"
+        f"?active_status=active&ad_type=all&country=KR"
+        f"&view_all_page_id={page_id}&search_type=page&media_type=all"
+        f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
+        f"&start_date[max]={today.strftime('%Y-%m-%d')}"
+    )
+    return _scrape_meta_url(url, headless, max_results)
+
+
+def parse_meta_page_id(input_value: str) -> str:
+    """Extract page_id from various input formats (raw ID, Ad Library URL, profile URL)."""
+    input_value = input_value.strip()
+    if input_value.isdigit():
+        return input_value
+    from urllib.parse import urlparse, parse_qs
+    parsed = urlparse(input_value)
+    qs = parse_qs(parsed.query)
+    if 'view_all_page_id' in qs:
+        return qs['view_all_page_id'][0]
+    if 'id' in qs:
+        return qs['id'][0]
+    return input_value
+
+
+def main(keyword: str = "", page_id: str = "", headless: bool = True, max_results: int = 12) -> dict:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
 
-    platform_ads = scrape_meta_ads(keyword, headless=headless, max_results=max_results)
+    if page_id:
+        resolved_id = parse_meta_page_id(page_id)
+        platform_ads = scrape_meta_ads_by_page_id(resolved_id, headless=headless, max_results=max_results)
+        return {
+            "page_id": resolved_id,
+            "source": "meta_ad_library",
+            "scraped_at": datetime.now().isoformat(),
+            "total_count": len(platform_ads),
+            "ads": [ad.model_dump(mode="json") for ad in platform_ads],
+        }
 
+    platform_ads = scrape_meta_ads(keyword, headless=headless, max_results=max_results)
     return {
         "keyword": keyword,
         "source": "meta_ad_library",
@@ -341,12 +383,13 @@ def main(keyword: str, headless: bool = True, max_results: int = 12) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Meta Ad Library Scraper (PlatformAd)")
-    parser.add_argument("--keyword", type=str, required=True, help="Search keyword")
+    parser.add_argument("--keyword", type=str, default="", help="Search keyword")
+    parser.add_argument("--page-id", type=str, default="", help="Facebook page ID or Ad Library URL")
     parser.add_argument("--headless", action="store_true", default=False, help="Run browser in headless mode")
     parser.add_argument("--max-results", type=int, default=12, help="Maximum number of results")
     args = parser.parse_args()
 
-    result = main(args.keyword, headless=args.headless, max_results=args.max_results)
+    result = main(keyword=args.keyword, page_id=args.page_id, headless=args.headless, max_results=args.max_results)
 
     output_dir = Path(__file__).parent / "output"
     output_dir.mkdir(exist_ok=True)

@@ -35,7 +35,7 @@ export interface BrandSource {
   id: string;
   brand_id: string;
   platform: string;        // 'google' | 'meta' | 'tiktok'
-  source_type: string;     // 'domain' | 'keyword'
+  source_type: string;     // 'domain' | 'keyword' | 'page_id'
   source_value: string;
   is_active: boolean;
   created_at: string;

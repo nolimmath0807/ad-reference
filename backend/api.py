@@ -605,7 +605,7 @@ def _source_row_to_dict(row) -> dict:
 
 class BrandSourceRequest(BaseModel):
     platform: str
-    source_type: str  # 'domain' | 'keyword'
+    source_type: str  # 'domain' | 'keyword' | 'page_id'
     source_value: str
 
 

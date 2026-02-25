@@ -44,7 +44,7 @@ const PLATFORM_COLORS: Record<string, string> = {
 
 const PLATFORM_INPUT_CONFIG: Record<string, { label: string; placeholder: string }> = {
   google: { label: "Domain", placeholder: "nike.com" },
-  meta: { label: "Search Keyword", placeholder: "Nike" },
+  meta: { label: "Page ID", placeholder: "112245377924307 또는 Ad Library URL 붙여넣기" },
   tiktok: { label: "Search Keyword", placeholder: "Nike" },
 };
 
@@ -77,7 +77,7 @@ export function EditBrandDialog({ stats, open, onOpenChange, onSuccess }: EditBr
     setIsAddingSource(true);
     const payload: BrandSourceCreateRequest = {
       platform: newPlatform,
-      source_type: newPlatform === "google" ? "domain" : "keyword",
+      source_type: newPlatform === "google" ? "domain" : newPlatform === "meta" ? "page_id" : "keyword",
       source_value: newSourceValue.trim(),
     };
 

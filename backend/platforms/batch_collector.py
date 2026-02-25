@@ -100,6 +100,12 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
             on_batch_callback=on_batch,
             mode="incremental" if mode == "incremental" else "full",
         )
+    elif platform == "meta" and source_type == "page_id":
+        from platforms.meta_scraper import scrape_meta_ads_by_page_id, parse_meta_page_id
+        page_id = parse_meta_page_id(source_value)
+        ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=30)
+        if ads:
+            on_batch(ads)
     elif platform == "meta" and source_type == "keyword":
         from platforms.meta_scraper import scrape_meta_ads
         ads = scrape_meta_ads(source_value, headless=True)

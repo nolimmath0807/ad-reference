@@ -35,7 +35,7 @@ interface AddCompetitorDialogProps {
 
 const PLATFORM_INPUT_CONFIG: Record<string, { label: string; placeholder: string }> = {
   google: { label: "Domain", placeholder: "nike.com" },
-  meta: { label: "Search Keyword", placeholder: "Nike" },
+  meta: { label: "Page ID", placeholder: "112245377924307 또는 Ad Library URL 붙여넣기" },
   tiktok: { label: "Search Keyword", placeholder: "Nike" },
 };
 
@@ -83,7 +83,7 @@ export function AddCompetitorDialog({ open, onOpenChange, onSuccess }: AddCompet
       notes: notes.trim() || undefined,
       sources: sources.map((s) => ({
         platform: s.platform,
-        source_type: s.platform === "google" ? "domain" : "keyword",
+        source_type: s.platform === "google" ? "domain" : s.platform === "meta" ? "page_id" : "keyword",
         source_value: s.source_value.trim(),
       })),
     };

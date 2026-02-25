@@ -104,7 +104,7 @@ class BrandSource(BaseModel):
     id: str | None = None
     brand_id: str
     platform: str  # 'google' | 'meta' | 'tiktok'
-    source_type: str  # 'domain' | 'keyword'
+    source_type: str  # 'domain' | 'keyword' | 'page_id'
     source_value: str
     is_active: bool = True
     created_at: datetime | None = None
