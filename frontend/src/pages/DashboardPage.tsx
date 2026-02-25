@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { SearchBar } from "@/components/dashboard/SearchBar";
 import { PlatformTabs } from "@/components/dashboard/PlatformTabs";
 import { FilterBar } from "@/components/dashboard/FilterBar";
@@ -22,7 +22,11 @@ export function DashboardPage() {
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const fetchingRef = useRef(false);
+
   const fetchAds = useCallback(async (params: AdSearchParams, append = false) => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     try {
       setLoading(true);
       const data = await api.get<AdSearchResponse>("/ads/search", params as Record<string, string | number | boolean | undefined>);
@@ -34,12 +38,12 @@ export function DashboardPage() {
       setHasNext(false);
     } finally {
       setLoading(false);
+      fetchingRef.current = false;
     }
   }, []);
 
   useEffect(() => {
     setPage(1);
-    setAds([]);
     fetchAds({ ...searchParams, page: 1 });
   }, [searchParams, fetchAds]);
 
@@ -84,11 +88,11 @@ export function DashboardPage() {
   };
 
   const handleLoadMore = useCallback(() => {
-    if (loading || !hasNext) return;
+    if (fetchingRef.current || !hasNext) return;
     const nextPage = page + 1;
     setPage(nextPage);
     fetchAds({ ...searchParams, page: nextPage }, true);
-  }, [page, searchParams, loading, hasNext, fetchAds]);
+  }, [page, searchParams, hasNext, fetchAds]);
 
   return (
     <div className="space-y-6">

@@ -86,6 +86,7 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) {
+          observer.disconnect();
           onLoadMore();
         }
       },
