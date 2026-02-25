@@ -49,7 +49,7 @@ def extract_ads(page) -> list[dict]:
         const results = [];
 
         // Strategy: find all _7jyh containers (one per ad), limit to 30
-        const adContainers = Array.from(document.querySelectorAll('div._7jyh')).slice(0, 30);
+        const adContainers = Array.from(document.querySelectorAll('div._7jyh')).slice(0, 200);
 
         for (const container of adContainers) {
             const ad = {};
@@ -175,7 +175,7 @@ def extract_ads(page) -> list[dict]:
         logger.warning("_7jyh 컨테이너 0건, HR 기반 섹셔닝 시도")
         raw_ads = page.evaluate("""() => {
             const results = [];
-            const hrs = Array.from(document.querySelectorAll('hr')).slice(0, 30);
+            const hrs = Array.from(document.querySelectorAll('hr')).slice(0, 200);
 
             for (let i = 0; i < hrs.length; i++) {
                 const hr = hrs[i];
@@ -292,11 +292,15 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 12) -> 
 
         time.sleep(5)
 
-        # Scroll down to trigger lazy loading
-        page.evaluate("window.scrollBy(0, 500)")
-        time.sleep(2)
-        page.evaluate("window.scrollBy(0, 500)")
-        time.sleep(2)
+        # Scroll down repeatedly to trigger lazy loading
+        prev_height = 0
+        for _ in range(max(3, max_results // 5)):
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            time.sleep(2)
+            curr_height = page.evaluate("document.body.scrollHeight")
+            if curr_height == prev_height:
+                break  # No more content to load
+            prev_height = curr_height
 
         raw_ads = extract_ads(page)
 
