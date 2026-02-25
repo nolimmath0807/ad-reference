@@ -715,6 +715,27 @@ async def api_all_brand_stats(user: dict = Depends(get_user)):
                 format_map[bid] = {}
             format_map[bid][r[1]] = r[2]
 
+        # 4b. Ad counts by platform per brand (single query)
+        cur.execute("""
+            SELECT brand_id, platform, COUNT(*) FROM ads
+            WHERE brand_id = ANY(%s::uuid[]) AND platform IS NOT NULL
+            GROUP BY brand_id, platform
+        """, (brand_ids,))
+        platform_map = {}
+        for r in cur.fetchall():
+            bid = str(r[0])
+            if bid not in platform_map:
+                platform_map[bid] = {}
+            platform_map[bid][r[1]] = r[2]
+
+        # 4c. Last collected at per brand (single query)
+        cur.execute("""
+            SELECT brand_id, MAX(COALESCE(saved_at, created_at)) FROM ads
+            WHERE brand_id = ANY(%s::uuid[])
+            GROUP BY brand_id
+        """, (brand_ids,))
+        last_collected_map = {str(r[0]): r[1].isoformat() if r[1] else None for r in cur.fetchall()}
+
         # 5. Build response
         results = []
         sources_by_brand = {}
@@ -747,6 +768,8 @@ async def api_all_brand_stats(user: dict = Depends(get_user)):
                 "sources": sources_by_brand.get(bid, []),
                 "total_ads": total_map.get(bid, 0),
                 "ads_by_format": format_map.get(bid, {}),
+                "ads_by_platform": platform_map.get(bid, {}),
+                "last_collected_at": last_collected_map.get(bid),
             })
 
         return results
@@ -907,7 +930,7 @@ async def api_brand_stats(
         )
         ads_by_platform = {row[0]: row[1] for row in cur.fetchall()}
 
-        cur.execute("SELECT MAX(saved_at) FROM ads WHERE brand_id = %s", (brand_id,))
+        cur.execute("SELECT MAX(COALESCE(saved_at, created_at)) FROM ads WHERE brand_id = %s", (brand_id,))
         last_row = cur.fetchone()
         last_collected_at = last_row[0].isoformat() if last_row and last_row[0] else None
 
