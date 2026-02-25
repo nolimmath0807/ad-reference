@@ -241,15 +241,21 @@ def extract_ads(page) -> list[dict]:
 def raw_to_platform_ad(raw: dict) -> PlatformAd:
     content_url = raw.get("content_url", "")
     advertiser_name = raw.get("advertiser_name", "")
-    has_video = bool(raw.get("thumbnail_url")) or "video" in (content_url or "").lower()
+    poster_url = raw.get("thumbnail_url")  # video poster from <video poster="...">
+    has_video = bool(poster_url) or "video" in (content_url or "").lower()
     media_type = "video" if has_video else "image"
+
+    if media_type == "video":
+        thumb = poster_url or ""
+    else:
+        thumb = content_url or ""
 
     return PlatformAd(
         source_id=make_source_id(advertiser_name, content_url),
         platform=PlatformType.meta,
         format=media_type,
         advertiser_name=advertiser_name,
-        thumbnail_url=content_url or "",
+        thumbnail_url=thumb,
         preview_url=content_url or None,
         media_type=media_type,
         landing_page_url=raw.get("landing_page_url") or None,
