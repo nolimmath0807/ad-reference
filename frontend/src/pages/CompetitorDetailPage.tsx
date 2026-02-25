@@ -1,14 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Activity } from "lucide-react";
+import { useParams, Link } from "react-router-dom";
+import { ExternalLink, Activity, ImageIcon, Play, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbSeparator,
+  BreadcrumbPage,
+} from "@/components/ui/breadcrumb";
 import { SearchBar } from "@/components/dashboard/SearchBar";
-import { PlatformTabs } from "@/components/dashboard/PlatformTabs";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { AdGrid } from "@/components/dashboard/AdGrid";
 import { AdDetailModal } from "@/components/ad/AdDetailModal";
 import { api } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import type { Ad, AdSearchParams, AdSearchResponse, PlatformType, FormatType, SortType } from "@/types/ad";
 import type { CompetitorStats } from "@/types/competitor";
 
@@ -20,6 +28,12 @@ const platformColors: Record<string, string> = {
   all: "bg-neutral-500 text-white",
 };
 
+const FORMAT_COLORS: Record<string, string> = {
+  image: "#8b5cf6",
+  video: "#06b6d4",
+  text: "#f59e0b",
+};
+
 const DEFAULT_PARAMS: AdSearchParams = {
   platform: "all",
   format: "all",
@@ -28,9 +42,24 @@ const DEFAULT_PARAMS: AdSearchParams = {
   limit: 20,
 };
 
+function formatRelativeTime(dateStr: string | null): string {
+  if (!dateStr) return "Never";
+  const date = new Date(dateStr);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
+
 export function CompetitorDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
 
   const [stats, setStats] = useState<CompetitorStats | null>(null);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
@@ -112,69 +141,186 @@ export function CompetitorDetailPage() {
     fetchAds(nextParams, true);
   };
 
-  const domain = stats?.domain_info;
+  const domain_info = stats?.domain_info;
+  const domain = domain_info?.domain ?? "Loading...";
+  const imageCount = stats?.ads_by_format?.image ?? 0;
+  const videoCount = stats?.ads_by_format?.video ?? 0;
+  const totalAds = stats?.total_ads ?? 0;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate("/competitors")}
-          className="mt-0.5 shrink-0"
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">
-              {domain?.domain ?? "Loading..."}
-            </h1>
-            {domain && (
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${platformColors[domain.platform] ?? platformColors.all}`}
-              >
-                {domain.platform}
-              </span>
+    <div className="space-y-8">
+      {/* Breadcrumb Navigation */}
+      <Breadcrumb>
+        <BreadcrumbList>
+          <BreadcrumbItem>
+            <BreadcrumbLink asChild>
+              <Link to="/competitors">Competitors</Link>
+            </BreadcrumbLink>
+          </BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem>
+            <BreadcrumbPage>{domain}</BreadcrumbPage>
+          </BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
+
+      {/* Hero Section */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-600/10 via-purple-600/10 to-indigo-600/10 border border-violet-500/20 p-6">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight">{domain}</h1>
+              {domain_info && (
+                <Badge className={platformColors[domain_info.platform] ?? platformColors.all}>
+                  {domain_info.platform}
+                </Badge>
+              )}
+              {domain_info?.is_active && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
+                  <span className="relative flex size-2">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                  </span>
+                  Active
+                </span>
+              )}
+            </div>
+            {domain_info?.notes && (
+              <p className="text-sm text-muted-foreground">{domain_info.notes}</p>
             )}
           </div>
-          <div className="mt-1.5 flex items-center gap-4">
-            {stats && (
-              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Activity className="size-3.5" />
-                <span className="font-medium text-foreground">{stats.total_ads}</span>
-                total ads collected
-              </div>
-            )}
-            {stats && stats.total_ads > 0 && (
-              <div className="flex items-center gap-1.5">
-                {Object.entries(stats.ads_by_format).map(([fmt, count]) => {
-                  const isActive = searchParams.format === fmt;
-                  return (
-                    <Badge
-                      key={fmt}
-                      variant={isActive ? "default" : "outline"}
-                      className={`cursor-pointer text-[10px] font-normal select-none transition-colors ${isActive ? "" : "hover:bg-accent hover:text-accent-foreground"}`}
-                      onClick={() => handleFormatChange(isActive ? "all" : (fmt as FormatType))}
-                    >
-                      {fmt.charAt(0).toUpperCase() + fmt.slice(1)} {count}
-                    </Badge>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <Button variant="outline" size="sm" asChild>
+            <a href={`https://${domain_info?.domain}`} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-3.5 mr-1.5" /> Visit site
+            </a>
+          </Button>
         </div>
       </div>
 
-      {/* Search + Filters (same as DashboardPage) */}
+      {/* Stats Dashboard */}
+      {stats && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Total Ads */}
+            <div className="rounded-2xl border bg-card/80 backdrop-blur-xl shadow-sm p-5 space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Activity className="size-4" />
+                <span className="text-xs font-medium">Total Ads</span>
+              </div>
+              <div className="text-2xl font-bold tabular-nums">{totalAds.toLocaleString()}</div>
+            </div>
+
+            {/* Image Ads */}
+            <div className="rounded-2xl border bg-card/80 backdrop-blur-xl shadow-sm p-5 space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <ImageIcon className="size-4" />
+                <span className="text-xs font-medium">Image Ads</span>
+              </div>
+              <div className="text-2xl font-bold tabular-nums">{imageCount.toLocaleString()}</div>
+              {totalAds > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {((imageCount / totalAds) * 100).toFixed(0)}% of total
+                </p>
+              )}
+            </div>
+
+            {/* Video Ads */}
+            <div className="rounded-2xl border bg-card/80 backdrop-blur-xl shadow-sm p-5 space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Play className="size-4" />
+                <span className="text-xs font-medium">Video Ads</span>
+              </div>
+              <div className="text-2xl font-bold tabular-nums">{videoCount.toLocaleString()}</div>
+              {totalAds > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {((videoCount / totalAds) * 100).toFixed(0)}% of total
+                </p>
+              )}
+            </div>
+
+            {/* Last Collected */}
+            <div className="rounded-2xl border bg-card/80 backdrop-blur-xl shadow-sm p-5 space-y-2">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="size-4" />
+                <span className="text-xs font-medium">Last Collected</span>
+              </div>
+              <div className="text-2xl font-bold tabular-nums">
+                {formatRelativeTime(stats.last_collected_at)}
+              </div>
+            </div>
+          </div>
+
+          {/* Format Distribution Bar */}
+          {totalAds > 0 && Object.keys(stats.ads_by_format).length > 0 && (
+            <div>
+              <div className="flex items-center gap-1 h-3 rounded-full overflow-hidden">
+                {Object.entries(stats.ads_by_format).map(([format, count]) => (
+                  <div
+                    key={format}
+                    style={{
+                      width: `${(count / totalAds) * 100}%`,
+                      backgroundColor: FORMAT_COLORS[format] ?? "#a3a3a3",
+                    }}
+                    className="h-full first:rounded-l-full last:rounded-r-full"
+                  />
+                ))}
+              </div>
+              <div className="flex items-center gap-4 mt-2">
+                {Object.entries(stats.ads_by_format).map(([format, count]) => (
+                  <div key={format} className="flex items-center gap-1.5 text-xs">
+                    <span
+                      className="size-2 rounded-full"
+                      style={{ backgroundColor: FORMAT_COLORS[format] ?? "#a3a3a3" }}
+                    />
+                    <span className="capitalize">{format}</span>
+                    <span className="text-muted-foreground">{count.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Search */}
       <SearchBar onSearch={handleSearch} defaultValue={searchParams.keyword ?? ""} />
 
-      <PlatformTabs
-        activePlatform={searchParams.platform ?? "all"}
-        onPlatformChange={handlePlatformChange}
-      />
+      {/* Platform Tabs with Count Badges */}
+      {stats && (
+        <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+          {[
+            { key: "all", label: "All", count: stats.total_ads },
+            ...Object.entries(stats.ads_by_platform).map(([platform, count]) => ({
+              key: platform,
+              label: platform.charAt(0).toUpperCase() + platform.slice(1),
+              count,
+            })),
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => handlePlatformChange(tab.key as "all" | PlatformType)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                searchParams.platform === tab.key
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {tab.label}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                  searchParams.platform === tab.key
+                    ? "bg-primary/10 text-primary"
+                    : "bg-muted text-muted-foreground"
+                )}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
 
       <FilterBar
         format={searchParams.format ?? "all"}
@@ -190,7 +336,7 @@ export function CompetitorDetailPage() {
         onClearFilters={handleClearFilters}
       />
 
-      {/* Ad grid (same as DashboardPage) */}
+      {/* Ad grid */}
       <AdGrid
         ads={ads}
         loading={loading}
@@ -199,7 +345,7 @@ export function CompetitorDetailPage() {
         onLoadMore={handleLoadMore}
       />
 
-      {/* Ad detail modal (same as DashboardPage) */}
+      {/* Ad detail modal */}
       <AdDetailModal
         ad={selectedAd}
         open={!!selectedAd}

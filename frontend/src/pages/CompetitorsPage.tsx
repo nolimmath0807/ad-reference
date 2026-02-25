@@ -1,15 +1,30 @@
-import { useState, useEffect, useCallback } from "react";
-import { Plus, Globe } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Globe, Users, Activity, Zap, Pause } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CompetitorCard } from "@/components/competitor/CompetitorCard";
 import { AddCompetitorDialog } from "@/components/competitor/AddCompetitorDialog";
 import { api } from "@/lib/api-client";
 import type { MonitoredDomain, CompetitorStats } from "@/types/competitor";
 
+type StatusFilter = "all" | "active" | "paused";
+type SortOption = "recent" | "name" | "most-ads";
+
 export function CompetitorsPage() {
   const [stats, setStats] = useState<CompetitorStats[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
+  const [sortOption, setSortOption] = useState<SortOption>("recent");
 
   const fetchCompetitors = useCallback(async () => {
     setLoading(true);
@@ -27,6 +42,61 @@ export function CompetitorsPage() {
     fetchCompetitors();
   }, [fetchCompetitors]);
 
+  const totalAds = useMemo(() => stats.reduce((sum, s) => sum + s.total_ads, 0), [stats]);
+  const activeCount = useMemo(() => stats.filter((s) => s.domain_info.is_active).length, [stats]);
+  const pausedCount = useMemo(() => stats.filter((s) => !s.domain_info.is_active).length, [stats]);
+
+  const platforms = useMemo(() => {
+    const set = new Set(stats.map((s) => s.domain_info.platform));
+    return Array.from(set).sort();
+  }, [stats]);
+
+  const filteredStats = useMemo(() => {
+    let result = [...stats];
+
+    if (statusFilter === "active") {
+      result = result.filter((s) => s.domain_info.is_active);
+    } else if (statusFilter === "paused") {
+      result = result.filter((s) => !s.domain_info.is_active);
+    }
+
+    if (platformFilter !== "all") {
+      result = result.filter((s) => s.domain_info.platform === platformFilter);
+    }
+
+    switch (sortOption) {
+      case "name":
+        result.sort((a, b) => a.domain_info.domain.localeCompare(b.domain_info.domain));
+        break;
+      case "most-ads":
+        result.sort((a, b) => b.total_ads - a.total_ads);
+        break;
+      case "recent":
+      default:
+        result.sort((a, b) => {
+          const dateA = a.domain_info.updated_at || a.domain_info.created_at;
+          const dateB = b.domain_info.updated_at || b.domain_info.created_at;
+          return new Date(dateB).getTime() - new Date(dateA).getTime();
+        });
+        break;
+    }
+
+    return result;
+  }, [stats, statusFilter, platformFilter, sortOption]);
+
+  const summaryCards = [
+    { label: "Total Competitors", value: stats.length, icon: Users, color: "text-violet-500" },
+    { label: "Total Ads Tracked", value: totalAds, icon: Activity, color: "text-cyan-500" },
+    { label: "Active", value: activeCount, icon: Zap, color: "text-emerald-500" },
+    { label: "Paused", value: pausedCount, icon: Pause, color: "text-amber-500" },
+  ];
+
+  const formatNumber = (n: number): string => {
+    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+    return String(n);
+  };
+
   return (
     <div className="mx-auto w-full max-w-6xl px-6 py-8">
       {/* Header */}
@@ -43,19 +113,90 @@ export function CompetitorsPage() {
         </Button>
       </div>
 
+      {/* Summary Stats Row */}
+      {!loading && stats.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-4">
+          {summaryCards.map((card) => (
+            <div
+              key={card.label}
+              className="rounded-2xl border bg-card/80 p-5 shadow-sm backdrop-blur-xl"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`${card.color}`}>
+                  <card.icon className="size-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold tabular-nums">{formatNumber(card.value)}</p>
+                  <p className="text-sm text-muted-foreground">{card.label}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filter / View Controls */}
+      {!loading && stats.length > 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <Tabs
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          >
+            <TabsList className="rounded-full bg-muted/50 p-1">
+              <TabsTrigger value="all" className="rounded-full">
+                All
+              </TabsTrigger>
+              <TabsTrigger value="active" className="rounded-full">
+                Active ({activeCount})
+              </TabsTrigger>
+              <TabsTrigger value="paused" className="rounded-full">
+                Paused ({pausedCount})
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          <div className="ml-auto flex items-center gap-3">
+            <Select value={platformFilter} onValueChange={setPlatformFilter}>
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="All Platforms" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Platforms</SelectItem>
+                {platforms.map((p) => (
+                  <SelectItem key={p} value={p} className="capitalize">
+                    {p.charAt(0).toUpperCase() + p.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortOption} onValueChange={(v) => setSortOption(v as SortOption)}>
+              <SelectTrigger size="sm">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="recent">Recently Updated</SelectItem>
+                <SelectItem value="name">Name A-Z</SelectItem>
+                <SelectItem value="most-ads">Most Ads</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
       {/* Competitor grid */}
       {loading ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <div
               key={i}
-              className="h-[200px] animate-pulse rounded-xl border bg-muted/30"
+              className="h-[260px] animate-pulse rounded-2xl border bg-muted/30"
             />
           ))}
         </div>
-      ) : stats.length > 0 ? (
+      ) : filteredStats.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {stats.map((s) => (
+          {filteredStats.map((s) => (
             <CompetitorCard
               key={s.domain_info.id}
               stats={s}
@@ -66,7 +207,7 @@ export function CompetitorsPage() {
           {/* Add new competitor card */}
           <button
             onClick={() => setShowAddDialog(true)}
-            className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-card transition-colors hover:border-muted-foreground/40 hover:bg-accent/50"
+            className="flex h-full min-h-[260px] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-muted-foreground/20 bg-card/80 backdrop-blur-xl transition-colors hover:border-muted-foreground/40 hover:bg-accent/50"
           >
             <div className="flex size-10 items-center justify-center rounded-full bg-muted">
               <Plus className="size-5 text-muted-foreground" />
@@ -76,8 +217,26 @@ export function CompetitorsPage() {
             </span>
           </button>
         </div>
+      ) : stats.length > 0 ? (
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-24">
+          <Globe className="mb-4 size-12 text-muted-foreground/40" />
+          <h3 className="text-lg font-semibold">No matches found</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Try adjusting your filters to see more competitors.
+          </p>
+          <Button
+            variant="outline"
+            className="mt-4"
+            onClick={() => {
+              setStatusFilter("all");
+              setPlatformFilter("all");
+            }}
+          >
+            Clear filters
+          </Button>
+        </div>
       ) : (
-        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-24">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed py-24">
           <Globe className="mb-4 size-12 text-muted-foreground/40" />
           <h3 className="text-lg font-semibold">No competitors monitored yet</h3>
           <p className="mt-1 text-sm text-muted-foreground">
