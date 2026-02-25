@@ -177,6 +177,15 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
     4. 최종 update_batch_run()으로 status='completed', finished_at 기록
     5. 결과 summary dict 반환
     """
+    # auto 모드: 일요일이면 full, 나머지 요일은 incremental
+    if mode == "auto":
+        if datetime.now().weekday() == 6:  # 일요일 = 6
+            mode = "full"
+            logger.info("auto 모드: 일요일 → full 수집")
+        else:
+            mode = "incremental"
+            logger.info("auto 모드: 평일 → incremental 수집")
+
     # 도메인 목록 결정
     if domain:
         domains = [MonitoredDomain(domain=domain)]
@@ -283,7 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--domain", type=str, default="", help="Single domain to scrape (skip DB domain list)")
     parser.add_argument("--dry-run", action="store_true", default=False, help="List domains only, no scraping")
     parser.add_argument("--trigger-type", type=str, default="manual", help="Trigger type (manual/scheduled)")
-    parser.add_argument("--mode", choices=["full", "incremental"], default="full", help="Scraping mode (full/incremental)")
+    parser.add_argument("--mode", choices=["full", "incremental", "auto"], default="full", help="Scraping mode (full/incremental/auto)")
     args = parser.parse_args()
 
     result = main(

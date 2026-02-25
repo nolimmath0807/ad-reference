@@ -51,20 +51,23 @@ def _save_ads_to_db(ads: list[PlatformAd]) -> int:
                     advertiser_handle, thumbnail_url, preview_url,
                     media_type, ad_copy, cta_text,
                     start_date, end_date, tags,
-                    landing_page_url, domain
+                    landing_page_url, domain,
+                    saved_at
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s
+                    %s, %s,
+                    NOW()
                 )
                 ON CONFLICT (source_id, platform) DO UPDATE SET
                     advertiser_name = EXCLUDED.advertiser_name,
                     thumbnail_url = EXCLUDED.thumbnail_url,
                     preview_url = EXCLUDED.preview_url,
                     ad_copy = EXCLUDED.ad_copy,
-                    domain = EXCLUDED.domain
+                    domain = EXCLUDED.domain,
+                    saved_at = NOW()
                 """,
                 (
                     ad.source_id, ad.platform.value, ad.format,
@@ -101,13 +104,15 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
                     advertiser_handle, thumbnail_url, preview_url,
                     media_type, ad_copy, cta_text,
                     start_date, end_date, tags,
-                    landing_page_url, raw_data, domain, creative_id
+                    landing_page_url, raw_data, domain, creative_id,
+                    saved_at
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
-                    %s, %s, %s, %s
+                    %s, %s, %s, %s,
+                    NOW()
                 )
                 ON CONFLICT (source_id, platform) DO UPDATE SET
                     advertiser_name = EXCLUDED.advertiser_name,
@@ -120,7 +125,8 @@ def upsert_ads_batch(ads: list[PlatformAd]) -> dict:
                     landing_page_url = EXCLUDED.landing_page_url,
                     domain = EXCLUDED.domain,
                     creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
-                    updated_at = NOW()
+                    updated_at = NOW(),
+                    saved_at = NOW()
                 RETURNING (xmax = 0) AS is_new
                 """,
                 (
