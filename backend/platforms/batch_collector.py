@@ -10,6 +10,8 @@ from conn import get_db
 from platforms.google_scraper import scrape_google_ads_by_domain
 from platforms.model import BatchRunStatus, BrandSourceScrapeResult, DomainScrapeResult, MonitoredDomain
 from platforms.scrape_worker import upsert_ads_batch
+from utils.activity_log import log_activity
+from utils.daily_stats import record_daily_stats
 
 logger = logging.getLogger("batch_collector")
 
@@ -120,6 +122,27 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
         f"scraped={result.ads_scraped}, new={result.ads_new}, "
         f"updated={result.ads_updated}, duration={result.duration_seconds}s"
     )
+    if result.ads_new > 0:
+        log_activity(
+            event_type="ad_change",
+            event_subtype="new_ads_found",
+            title=f"{result.ads_new} new ads from {source.get('brand_name', '')}",
+            message=f"Platform: {platform}, Source: {source_value}",
+            metadata={
+                "brand_name": source.get("brand_name", ""),
+                "platform": platform,
+                "ads_new": result.ads_new,
+                "ads_scraped": result.ads_scraped,
+            },
+        )
+    if result.ads_new > 0 or result.ads_updated > 0:
+        record_daily_stats(
+            brand_id=brand_id,
+            platform=platform,
+            new_count=result.ads_new,
+            updated_count=result.ads_updated,
+            total_scraped=result.ads_scraped,
+        )
     return result
 
 
@@ -135,6 +158,12 @@ def create_batch_run(trigger_type: str = "manual") -> str:
             (run_id, BatchRunStatus.running.value, trigger_type),
         )
     logger.info(f"batch_run 생성: id={run_id}, trigger_type={trigger_type}")
+    log_activity(
+        event_type="collection",
+        event_subtype="batch_started",
+        title="Batch collection started",
+        metadata={"trigger_type": trigger_type, "batch_run_id": run_id},
+    )
     return run_id
 
 
@@ -280,6 +309,12 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
             error_msg = f"[{label}] {type(e).__name__}: {e}"
             logger.error(error_msg)
             errors.append(error_msg)
+            log_activity(
+                event_type="collection",
+                event_subtype="batch_failed",
+                title=f"Scrape failed: {label}",
+                message=str(e),
+            )
             domain_results[label] = BrandSourceScrapeResult(
                 source_id=src["source_id"],
                 platform=src["platform"],
@@ -330,6 +365,12 @@ def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode:
             error_msg = f"[{d.domain}] {type(e).__name__}: {e}"
             logger.error(error_msg)
             errors.append(error_msg)
+            log_activity(
+                event_type="collection",
+                event_subtype="batch_failed",
+                title=f"Scrape failed: {d.domain}",
+                message=str(e),
+            )
             domain_results[d.domain] = DomainScrapeResult(
                 domain=d.domain, error=str(e)
             ).model_dump(mode="json")
@@ -445,6 +486,19 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
         total_ads_updated=total_updated,
         domain_results=domain_results,
         errors=errors,
+    )
+
+    log_activity(
+        event_type="collection",
+        event_subtype="batch_completed",
+        title=f"Batch completed: {total_new} new, {total_updated} updated",
+        metadata={
+            "batch_run_id": run_id,
+            "total_scraped": total_scraped,
+            "total_new": total_new,
+            "total_updated": total_updated,
+            "errors_count": len(errors),
+        },
     )
 
     summary = {

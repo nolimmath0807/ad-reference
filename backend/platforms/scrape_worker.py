@@ -9,6 +9,8 @@ from platforms.model import PlatformAd
 from platforms.s3 import is_s3_configured, upload_from_url
 from platforms.meta_scraper import scrape_meta_ads
 from platforms.google_scraper import scrape_google_ads_by_keyword, scrape_google_ads_by_domain
+from utils.activity_log import log_activity
+
 
 logger = logging.getLogger("scrape_worker")
 
@@ -155,6 +157,13 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
 
     total = new + updated
     logger.info(f"UPSERT 완료: new={new}, updated={updated}, total={total}")
+    if new > 0:
+        log_activity(
+            event_type="ad_change",
+            event_subtype="new_ads_found",
+            title=f"{new} new ads saved",
+            metadata={"new": new, "updated": updated, "brand_id": brand_id},
+        )
     return {"new": new, "updated": updated, "total": total}
 
 

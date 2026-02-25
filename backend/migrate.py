@@ -214,6 +214,39 @@ def migrate():
           AND REPLACE(LOWER(ads.domain), 'www.', '') = REPLACE(LOWER(bs.source_value), 'www.', '')
     """)
 
+    # 13. activity_logs table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS activity_logs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            event_type VARCHAR(50) NOT NULL,
+            event_subtype VARCHAR(50),
+            title VARCHAR(255) NOT NULL,
+            message TEXT,
+            metadata JSONB DEFAULT '{}',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON activity_logs(event_type)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC)")
+
+    # 14. daily_brand_stats table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS daily_brand_stats (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            brand_id UUID NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+            stat_date DATE NOT NULL DEFAULT CURRENT_DATE,
+            platform VARCHAR(20) NOT NULL,
+            new_count INTEGER NOT NULL DEFAULT 0,
+            updated_count INTEGER NOT NULL DEFAULT 0,
+            total_scraped INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            UNIQUE(brand_id, stat_date, platform)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_daily_brand_stats_date ON daily_brand_stats(stat_date DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_daily_brand_stats_brand ON daily_brand_stats(brand_id, stat_date DESC)")
+
     conn.commit()
     cur.close()
     conn.close()

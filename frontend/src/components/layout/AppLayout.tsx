@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
+import { ActivityPanel } from "@/components/activity/ActivityPanel";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -38,6 +39,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </header>
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </SidebarInset>
+      <ActivityPanel />
     </SidebarProvider>
   );
 }

@@ -40,6 +40,8 @@ from users.model import UserUpdateRequest
 from platforms.model import PlatformStatus, PlatformType, Status
 from platforms.batch_collector import run_daily_batch
 
+from activity.list import list_activity_logs
+
 from conn import get_db
 
 from utils.auth_helper import get_current_user
@@ -1013,6 +1015,21 @@ async def api_get_batch_run(
     if not row:
         raise HTTPException(status_code=404, detail="배치 실행을 찾을 수 없습니다.")
     return _serialize_batch_row(dict(zip(cols, row)))
+
+
+# ──────────────────────────────────────────────
+# Activity Logs (JWT required)
+# ──────────────────────────────────────────────
+
+@app.get("/activity-logs")
+async def api_list_activity_logs(
+    user: dict = Depends(get_user),
+    event_type: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    page: int = Query(default=1, ge=1),
+):
+    offset = (page - 1) * limit
+    return list_activity_logs(event_type=event_type, limit=limit, offset=offset)
 
 
 if __name__ == "__main__":
