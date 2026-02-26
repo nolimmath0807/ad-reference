@@ -28,6 +28,10 @@ class LogoutRequest(BaseModel):
     refresh_token: str
 
 
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
 def main() -> dict:
     login = LoginRequest(email="user@example.com", password="secureP@ss123")
     register = RegisterRequest(email="new@example.com", password="secureP@ss123", name="Kim")
@@ -38,12 +42,14 @@ def main() -> dict:
         expires_in=3600,
     )
     logout = LogoutRequest(refresh_token="eyJ...")
+    refresh = RefreshRequest(refresh_token="eyJ...")
 
     return {
         "LoginRequest": login.model_dump(),
         "RegisterRequest": register.model_dump(),
         "TokenResponse": token.model_dump(),
         "LogoutRequest": logout.model_dump(),
+        "RefreshRequest": refresh.model_dump(),
     }
 
 

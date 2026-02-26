@@ -3,6 +3,7 @@ import os
 import uuid
 from typing import Optional
 
+import jwt as pyjwt
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,7 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from auth.login import login
 from auth.register import register
 from auth.logout import logout
-from auth.model import LoginRequest, RegisterRequest, LogoutRequest
+from auth.refresh import refresh_tokens
+from auth.model import LoginRequest, RegisterRequest, LogoutRequest, RefreshRequest
 
 from ads.search import search_ads
 from ads.detail import get_ad_detail
@@ -72,7 +74,18 @@ security = HTTPBearer()
 
 async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     token = credentials.credentials
-    user = get_current_user(token)
+    try:
+        user = get_current_user(token)
+    except pyjwt.exceptions.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "TOKEN_EXPIRED", "message": "토큰이 만료되었습니다.", "details": None}},
+        )
+    except (pyjwt.exceptions.InvalidTokenError, Exception):
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "UNAUTHORIZED", "message": "유효하지 않은 토큰입니다.", "details": None}},
+        )
     if not user:
         raise HTTPException(status_code=401, detail="인증이 필요합니다.")
     return user
@@ -110,6 +123,11 @@ async def api_login(request: LoginRequest):
 @app.post("/auth/logout")
 async def api_logout(request: LogoutRequest):
     return logout(request.refresh_token)
+
+
+@app.post("/auth/refresh")
+async def api_refresh(request: RefreshRequest):
+    return refresh_tokens(request.refresh_token)
 
 
 # ──────────────────────────────────────────────
