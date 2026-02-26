@@ -102,17 +102,36 @@ export function CompetitorCard({ stats, onDeleted }: CompetitorCardProps) {
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-base font-semibold">{brand.brand_name}</h3>
               <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {sources.map((source) => (
-                  <Badge
-                    key={source.id}
-                    variant="secondary"
-                    className={`text-[10px] ${PLATFORM_COLORS[source.platform] ?? "bg-neutral-500/10 text-neutral-600"}`}
-                  >
-                    {source.platform === "google"
-                      ? source.source_value
-                      : `${source.platform}: ${source.source_value}`}
-                  </Badge>
-                ))}
+                {(() => {
+                  const grouped = sources.reduce<Record<string, { platform: string; values: string[] }>>((acc, s) => {
+                    if (!acc[s.platform]) acc[s.platform] = { platform: s.platform, values: [] };
+                    acc[s.platform].values.push(s.source_value);
+                    return acc;
+                  }, {});
+                  return Object.values(grouped).map(({ platform, values }) => {
+                    const colors = PLATFORM_COLORS[platform] ?? "bg-neutral-500/10 text-neutral-600";
+                    if (platform === "google") {
+                      if (values.length === 1) {
+                        return (
+                          <Badge key={platform} variant="secondary" className={`text-[10px] ${colors}`}>
+                            {values[0]}
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <Badge key={platform} variant="secondary" className={`text-[10px] ${colors}`}>
+                          {values[0]} +{values.length - 1}
+                        </Badge>
+                      );
+                    }
+                    const label = platform.charAt(0).toUpperCase() + platform.slice(1);
+                    return (
+                      <Badge key={platform} variant="secondary" className={`text-[10px] ${colors}`}>
+                        {values.length > 1 ? `${label} \u00d7${values.length}` : label}
+                      </Badge>
+                    );
+                  });
+                })()}
                 {brand.is_active ? (
                   <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600">
                     <span className="relative flex size-2">

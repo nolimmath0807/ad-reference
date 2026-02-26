@@ -24,11 +24,15 @@ export function LoginForm() {
       await login(form);
       navigate("/dashboard");
     } catch (err: unknown) {
+      const e = err as Record<string, unknown>;
+      const detail = e?.detail as Record<string, unknown> | string | undefined;
       const message =
-        (err as { error?: { message?: string } })?.error?.message ||
-        (err as { detail?: string })?.detail ||
+        (typeof detail === "object" && detail !== null
+          ? (detail.error as Record<string, unknown>)?.message
+          : detail) ||
+        (e?.error as Record<string, unknown>)?.message ||
         "Login failed. Please check your credentials.";
-      setError(message);
+      setError(String(message));
     } finally {
       setIsSubmitting(false);
     }
