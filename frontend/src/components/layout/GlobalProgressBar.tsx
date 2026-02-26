@@ -5,7 +5,7 @@ export function GlobalProgressBar() {
   const [loading, setLoading] = useState(false);
   const [width, setWidth] = useState(0);
   const [visible, setVisible] = useState(false);
-  const trickleRef = useRef<ReturnType<typeof setInterval>>();
+  const trickleRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   useEffect(() => {
     return subscribe(setLoading);
