@@ -856,6 +856,13 @@ def scrape_google_ads_by_domain(
     max_results=None이면 전체 수집 (무제한 모드).
     on_batch_callback이 설정되면 50건마다 콜백 호출 후 메모리 해제.
     """
+    # 방어적 도메인 정규화 (URL이 들어올 경우 대비)
+    if "://" in domain:
+        from urllib.parse import urlparse
+        parsed = urlparse(domain)
+        domain = parsed.netloc or parsed.path.rstrip("/")
+    domain = domain.replace("www.", "").strip().rstrip("/")
+
     unlimited = max_results is None
     BATCH_SIZE = 50
     label = "unlimited" if unlimited else str(max_results)

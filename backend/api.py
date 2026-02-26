@@ -2,6 +2,7 @@ import json
 import os
 import uuid
 from typing import Optional
+from urllib.parse import urlparse
 
 import jwt as pyjwt
 from dotenv import load_dotenv
@@ -89,6 +90,21 @@ async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)
     if not user:
         raise HTTPException(status_code=401, detail="인증이 필요합니다.")
     return user
+
+
+def _normalize_domain(value: str) -> str:
+    """URL이 입력되면 도메인만 추출. 예: 'https://narinfla.com/' → 'narinfla.com'"""
+    value = value.strip()
+    if "://" in value or value.startswith("www."):
+        if not value.startswith(("http://", "https://")):
+            value = "https://" + value
+        parsed = urlparse(value)
+        domain = parsed.netloc or parsed.path.rstrip("/")
+    else:
+        domain = value.rstrip("/")
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain
 
 
 def _check_error(result: dict) -> dict:
@@ -660,13 +676,14 @@ async def api_create_brand(
         sources = []
         for s in req.sources:
             source_id = str(uuid.uuid4())
+            sv = _normalize_domain(s.source_value) if s.source_type == "domain" else s.source_value
             cur.execute(
                 """
                 INSERT INTO brand_sources (id, brand_id, platform, source_type, source_value)
                 VALUES (%s, %s, %s, %s, %s)
                 RETURNING id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
                 """,
-                (source_id, brand_id, s.platform, s.source_type, s.source_value),
+                (source_id, brand_id, s.platform, s.source_type, sv),
             )
             sources.append(cur.fetchone())
 
@@ -883,13 +900,14 @@ async def api_add_brand_source(
             raise HTTPException(status_code=404, detail="Brand not found")
 
         source_id = str(uuid.uuid4())
+        sv = _normalize_domain(req.source_value) if req.source_type == "domain" else req.source_value
         cur.execute(
             """
             INSERT INTO brand_sources (id, brand_id, platform, source_type, source_value)
             VALUES (%s, %s, %s, %s, %s)
             RETURNING id, brand_id, platform, source_type, source_value, is_active, created_at, updated_at
             """,
-            (source_id, brand_id, req.platform, req.source_type, req.source_value),
+            (source_id, brand_id, req.platform, req.source_type, sv),
         )
         row = cur.fetchone()
 

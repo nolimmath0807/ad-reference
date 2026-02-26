@@ -85,6 +85,24 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
     )
 
     def on_batch(ads):
+        # Google domain 스크래핑 시 도메인 불일치 광고 필터링
+        if platform == "google" and source_type == "domain":
+            target = source_value.replace("www.", "")
+            before_count = len(ads)
+            filtered = []
+            for ad in ads:
+                ad_domain = (ad.domain or "").replace("www.", "")
+                ad_landing = (ad.landing_page_url or "")
+                if target in ad_domain or target in ad_landing:
+                    filtered.append(ad)
+            excluded = before_count - len(filtered)
+            if excluded > 0:
+                logger.info(
+                    f"[{source_value}] 도메인 필터링: {before_count}건 중 {excluded}건 제외 "
+                    f"(target={target})"
+                )
+            ads = filtered
+
         for ad in ads:
             if not ad.domain:
                 ad.domain = source_value
