@@ -1,3 +1,5 @@
+import { startLoading, stopLoading } from "@/lib/loading-bar";
+
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 class ApiClient {
@@ -22,17 +24,22 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${path}`, {
-      ...options,
-      headers,
-    });
+    startLoading();
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        ...options,
+        headers,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: { message: "Request failed" } }));
-      throw { status: response.status, ...error };
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: { message: "Request failed" } }));
+        throw { status: response.status, ...error };
+      }
+
+      return response.json();
+    } finally {
+      stopLoading();
     }
-
-    return response.json();
   }
 
   async get<T>(path: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { ExternalLink, Pencil, Activity, ImageIcon, Play, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,6 @@ const DEFAULT_PARAMS: AdSearchParams = {
   platform: "all",
   format: "all",
   sort: "recent",
-  page: 1,
   limit: 20,
 };
 
@@ -64,9 +63,13 @@ export function CompetitorDetailPage() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [searchParams, setSearchParams] = useState<AdSearchParams>(DEFAULT_PARAMS);
+  const [page, setPage] = useState(1);
   const [ads, setAds] = useState<Ad[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const requestIdRef = useRef(0);
+  const loadingMoreRef = useRef(false);
 
   // Fetch brand stats
   useEffect(() => {
@@ -78,20 +81,45 @@ export function CompetitorDetailPage() {
   const fetchAds = useCallback(
     async (params: AdSearchParams, append = false) => {
       if (!id) return;
+
+      if (append) {
+        if (loadingMoreRef.current) return;
+        loadingMoreRef.current = true;
+      } else {
+        requestIdRef.current++;
+      }
+      const requestId = requestIdRef.current;
+
       setLoading(true);
-      const data = await api.get<AdSearchResponse>(
-        `/brands/${id}/ads`,
-        params as Record<string, string | number | boolean | undefined>
-      );
-      setAds((prev) => (append ? [...prev, ...data.items] : data.items));
-      setHasNext(data.has_next);
-      setLoading(false);
+
+      try {
+        const data = await api.get<AdSearchResponse>(
+          `/brands/${id}/ads`,
+          params as Record<string, string | number | boolean | undefined>
+        );
+        if (requestId !== requestIdRef.current) return;
+        setAds((prev) => (append ? [...prev, ...data.items] : data.items));
+        setHasNext(data.has_next);
+      } catch (err) {
+        if (requestId !== requestIdRef.current) return;
+        console.error("Failed to fetch ads:", err);
+        if (!append) setAds([]);
+        setHasNext(false);
+      } finally {
+        if (requestId === requestIdRef.current) {
+          setLoading(false);
+        }
+        if (append) {
+          loadingMoreRef.current = false;
+        }
+      }
     },
     [id]
   );
 
   useEffect(() => {
-    fetchAds(searchParams);
+    setPage(1);
+    fetchAds({ ...searchParams, page: 1 });
   }, [searchParams, fetchAds]);
 
   const updateParams = (updates: Partial<AdSearchParams>) => {
@@ -134,12 +162,12 @@ export function CompetitorDetailPage() {
     setSelectedAd(ad);
   };
 
-  const handleLoadMore = () => {
-    const nextPage = (searchParams.page ?? 1) + 1;
-    const nextParams = { ...searchParams, page: nextPage };
-    setSearchParams(nextParams);
-    fetchAds(nextParams, true);
-  };
+  const handleLoadMore = useCallback(() => {
+    if (loadingMoreRef.current || !hasNext) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchAds({ ...searchParams, page: nextPage }, true);
+  }, [page, searchParams, hasNext, fetchAds]);
 
   const brandName = stats?.brand.brand_name ?? "Loading...";
   const imageCount = stats?.ads_by_format?.image ?? 0;

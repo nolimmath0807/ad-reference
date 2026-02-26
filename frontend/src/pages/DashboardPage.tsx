@@ -22,23 +22,37 @@ export function DashboardPage() {
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const fetchingRef = useRef(false);
+  const requestIdRef = useRef(0);
+  const loadingMoreRef = useRef(false);
 
   const fetchAds = useCallback(async (params: AdSearchParams, append = false) => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
+    if (append) {
+      if (loadingMoreRef.current) return;
+      loadingMoreRef.current = true;
+    } else {
+      requestIdRef.current++;
+    }
+    const requestId = requestIdRef.current;
+
+    setLoading(true);
+
     try {
-      setLoading(true);
       const data = await api.get<AdSearchResponse>("/ads/search", params as Record<string, string | number | boolean | undefined>);
+      if (requestId !== requestIdRef.current) return;
       setAds((prev) => (append ? [...prev, ...data.items] : data.items));
       setHasNext(data.has_next);
     } catch (err) {
+      if (requestId !== requestIdRef.current) return;
       console.error("Failed to fetch ads:", err);
       if (!append) setAds([]);
       setHasNext(false);
     } finally {
-      setLoading(false);
-      fetchingRef.current = false;
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
+      if (append) {
+        loadingMoreRef.current = false;
+      }
     }
   }, []);
 
@@ -88,7 +102,7 @@ export function DashboardPage() {
   };
 
   const handleLoadMore = useCallback(() => {
-    if (fetchingRef.current || !hasNext) return;
+    if (loadingMoreRef.current || !hasNext) return;
     const nextPage = page + 1;
     setPage(nextPage);
     fetchAds({ ...searchParams, page: nextPage }, true);

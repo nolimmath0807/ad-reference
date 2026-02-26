@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Heart, MessageCircle, Share2, ImageIcon, ImageOff, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, ImageIcon, ImageOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Ad } from "@/types/ad";
@@ -190,13 +190,6 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
 
       {/* Sentinel for infinite scroll */}
       <div ref={sentinelRef} />
-
-      {/* Loading spinner while fetching more */}
-      {loading && ads.length > 0 && (
-        <div className="flex justify-center py-4">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-        </div>
-      )}
     </div>
   );
 }

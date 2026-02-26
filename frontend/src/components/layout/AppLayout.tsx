@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/breadcrumb";
 import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
+import { GlobalProgressBar } from "./GlobalProgressBar";
 import { ActivityPanel } from "@/components/activity/ActivityPanel";
 
 const pageTitles: Record<string, string> = {
@@ -24,6 +25,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider>
+      <GlobalProgressBar />
       <AppSidebar />
       <SidebarInset>
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
