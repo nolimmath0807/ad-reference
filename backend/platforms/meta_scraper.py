@@ -5,7 +5,7 @@ import logging
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -34,7 +34,8 @@ def is_blocked_url(url: str) -> bool:
 
 
 def make_source_id(advertiser_name: str, content_url: str) -> str:
-    raw = f"meta:{advertiser_name}:{content_url}"
+    stable_url = urlparse(content_url).path  # 쿼리 파라미터 제거, path만 사용
+    raw = f"meta:{advertiser_name}:{stable_url}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
