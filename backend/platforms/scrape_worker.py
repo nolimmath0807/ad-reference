@@ -112,14 +112,14 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
                     media_type, ad_copy, cta_text,
                     start_date, end_date, tags,
                     landing_page_url, raw_data, domain, creative_id,
-                    brand_id, saved_at
+                    brand_id, saved_at, last_seen_at
                 ) VALUES (
                     %s, %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s,
                     %s, %s, %s, %s,
-                    %s, NOW()
+                    %s, NOW(), NOW()
                 )
                 ON CONFLICT (source_id, platform) DO UPDATE SET
                     advertiser_name = EXCLUDED.advertiser_name,
@@ -134,7 +134,8 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
                     creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
                     brand_id = COALESCE(EXCLUDED.brand_id, ads.brand_id),
                     updated_at = NOW(),
-                    saved_at = NOW()
+                    saved_at = NOW(),
+                    last_seen_at = NOW()
                 RETURNING (xmax = 0) AS is_new
                 """,
                 (

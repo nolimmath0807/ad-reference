@@ -34,7 +34,7 @@ def _incremental_batch_job():
 
 
 def _full_batch_job():
-    """주 1회 전체 배치 작업"""
+    """매일 새벽 전체 배치 작업"""
     logger.info("=== 스케줄된 전체 배치 시작 ===")
     try:
         result = run_daily_batch(trigger_type="scheduled_full", mode="full")
@@ -48,13 +48,11 @@ def _full_batch_job():
 
 def start_scheduler(
     incremental_hours: int = 4,
-    full_day_of_week: str = "sun",
     full_hour: int = 3,
 ) -> BackgroundScheduler:
     global _scheduler
 
     incremental_hours = int(os.getenv("BATCH_INCREMENTAL_HOURS", str(incremental_hours)))
-    full_day_of_week = os.getenv("BATCH_FULL_DAY", full_day_of_week)
     full_hour = int(os.getenv("BATCH_FULL_HOUR", str(full_hour)))
 
     _scheduler = BackgroundScheduler()
@@ -68,19 +66,19 @@ def start_scheduler(
         replace_existing=True,
     )
 
-    # Job 2: 전체 수집 (주 1회)
+    # Job 2: 전체 수집 (매일 새벽)
     _scheduler.add_job(
         _full_batch_job,
-        trigger=CronTrigger(day_of_week=full_day_of_week, hour=full_hour, minute=0),
+        trigger=CronTrigger(hour=full_hour, minute=0),
         id="full_batch_collection",
-        name="Full Batch Ad Collection (weekly)",
+        name="Full Batch Ad Collection (daily)",
         replace_existing=True,
     )
 
     _scheduler.start()
     logger.info(
         f"스케줄러 시작: 증분 수집 매 {incremental_hours}시간, "
-        f"전체 수집 매주 {full_day_of_week} {full_hour:02d}:00"
+        f"전체 수집 매일 {full_hour:02d}:00"
     )
     return _scheduler
 
@@ -94,7 +92,7 @@ def stop_scheduler() -> None:
     _scheduler = None
 
 
-def main(run_once: bool, daemon: bool, incremental_hours: int, full_day: str, full_hour: int, mode: str) -> dict:
+def main(run_once: bool, daemon: bool, incremental_hours: int, full_hour: int, mode: str) -> dict:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -113,7 +111,6 @@ def main(run_once: bool, daemon: bool, incremental_hours: int, full_day: str, fu
         logger.info("=== 데몬 모드 시작 ===")
         scheduler = start_scheduler(
             incremental_hours=incremental_hours,
-            full_day_of_week=full_day,
             full_hour=full_hour,
         )
 
@@ -138,7 +135,6 @@ if __name__ == "__main__":
     group.add_argument("--daemon", action="store_true", default=False, help="스케줄러 데몬 모드")
     parser.add_argument("--mode", choices=["full", "incremental"], default="full", help="1회 실행 시 모드")
     parser.add_argument("--incremental-hours", type=int, default=4, help="증분 수집 간격 (시간, 기본: 4)")
-    parser.add_argument("--full-day", type=str, default="sun", help="전체 수집 요일 (기본: sun)")
     parser.add_argument("--full-hour", type=int, default=3, help="전체 수집 시각 (기본: 3)")
     args = parser.parse_args()
 
@@ -146,7 +142,6 @@ if __name__ == "__main__":
         run_once=args.run_once,
         daemon=args.daemon,
         incremental_hours=args.incremental_hours,
-        full_day=args.full_day,
         full_hour=args.full_hour,
         mode=args.mode,
     )

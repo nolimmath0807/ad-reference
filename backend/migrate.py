@@ -119,6 +119,11 @@ def migrate():
         )
     """)
 
+    # 2b. ads table - add last_seen_at column
+    cur.execute("""
+        ALTER TABLE ads ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ
+    """)
+
     # 8. ads table - add columns
     cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()")
     cur.execute("ALTER TABLE ads ADD COLUMN IF NOT EXISTS raw_data JSONB")
