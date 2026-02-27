@@ -123,12 +123,44 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
     elif platform == "meta" and source_type == "page_id":
         from platforms.meta_scraper import scrape_meta_ads_by_page_id, parse_meta_page_id
         page_id = parse_meta_page_id(source_value)
-        ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=30)
+
+        # 기존 광고 source_id 조회 (중복 체크용)
+        existing_source_ids = set()
+        with get_db() as (conn, cur):
+            cur.execute(
+                "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta'",
+                (brand_id,),
+            )
+            existing_source_ids = {row[0] for row in cur.fetchall()}
+
+        is_first_scrape = len(existing_source_ids) == 0
+        logger.info(f"[meta:page_id:{page_id}] 기존 광고 {len(existing_source_ids)}건, {'첫 수집(전체)' if is_first_scrape else '증분 수집'}")
+
+        ads = scrape_meta_ads_by_page_id(
+            page_id, headless=True, max_results=500,
+            existing_source_ids=None if is_first_scrape else existing_source_ids,
+        )
         if ads:
             on_batch(ads)
     elif platform == "meta" and source_type == "keyword":
         from platforms.meta_scraper import scrape_meta_ads
-        ads = scrape_meta_ads(source_value, headless=True)
+
+        # 기존 광고 source_id 조회 (중복 체크용)
+        existing_source_ids = set()
+        with get_db() as (conn, cur):
+            cur.execute(
+                "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta'",
+                (brand_id,),
+            )
+            existing_source_ids = {row[0] for row in cur.fetchall()}
+
+        is_first_scrape = len(existing_source_ids) == 0
+        logger.info(f"[meta:keyword:{source_value}] 기존 광고 {len(existing_source_ids)}건, {'첫 수집(전체)' if is_first_scrape else '증분 수집'}")
+
+        ads = scrape_meta_ads(
+            source_value, headless=True, max_results=500,
+            existing_source_ids=None if is_first_scrape else existing_source_ids,
+        )
         if ads:
             on_batch(ads)
     elif platform == "tiktok" and source_type == "keyword":

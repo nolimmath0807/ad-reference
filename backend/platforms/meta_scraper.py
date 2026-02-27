@@ -264,9 +264,14 @@ def raw_to_platform_ad(raw: dict) -> PlatformAd:
     )
 
 
-def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 12) -> list[PlatformAd]:
-    """Shared Playwright browser logic for scraping Meta Ad Library URLs."""
-    logger.info(f"Meta Ad Library 스크래핑 시작: url={url[:120]}")
+def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
+    """Shared Playwright browser logic for scraping Meta Ad Library URLs.
+
+    Args:
+        existing_source_ids: 이미 수집된 광고 source_id 집합.
+            제공되면 스크롤 중 기존 광고 발견 시 조기 중단.
+    """
+    logger.info(f"Meta Ad Library 스크래핑 시작: url={url[:120]}, max_results={max_results}, incremental={'yes' if existing_source_ids else 'no'}")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=headless)
@@ -295,13 +300,27 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 12) -> 
 
         # Scroll down repeatedly to trigger lazy loading
         prev_height = 0
-        for _ in range(max(3, max_results // 5)):
+        prev_ad_count = 0
+        max_scrolls = max(3, max_results // 5)
+        for scroll_i in range(max_scrolls):
             page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             time.sleep(2)
             curr_height = page.evaluate("document.body.scrollHeight")
             if curr_height == prev_height:
                 break  # No more content to load
             prev_height = curr_height
+
+            # 증분 모드: 매 3스크롤마다 기존 광고 존재 여부 체크 → 조기 중단
+            if existing_source_ids and (scroll_i + 1) % 3 == 0:
+                current_raw = extract_ads(page)
+                if len(current_raw) > prev_ad_count:
+                    new_raw = current_raw[prev_ad_count:]
+                    new_platform = [raw_to_platform_ad(ad) for ad in new_raw]
+                    has_existing = any(ad.source_id in existing_source_ids for ad in new_platform)
+                    if has_existing:
+                        logger.info(f"기존 광고 발견 → 스크롤 중단 (scroll {scroll_i + 1}, ads loaded: {len(current_raw)})")
+                        break
+                    prev_ad_count = len(current_raw)
 
         raw_ads = extract_ads(page)
 
@@ -326,7 +345,7 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 12) -> 
     return platform_ads
 
 
-def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 12) -> list[PlatformAd]:
+def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
     encoded_keyword = quote(keyword)
     today = date.today()
     three_months_ago = _THREE_MONTHS_AGO
@@ -337,10 +356,10 @@ def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 12) 
         f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
         f"&start_date[max]={today.strftime('%Y-%m-%d')}"
     )
-    return _scrape_meta_url(url, headless, max_results)
+    return _scrape_meta_url(url, headless, max_results, existing_source_ids)
 
 
-def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 30) -> list[PlatformAd]:
+def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
     today = date.today()
     three_months_ago = _THREE_MONTHS_AGO
     url = (
@@ -350,7 +369,7 @@ def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results:
         f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
         f"&start_date[max]={today.strftime('%Y-%m-%d')}"
     )
-    return _scrape_meta_url(url, headless, max_results)
+    return _scrape_meta_url(url, headless, max_results, existing_source_ids)
 
 
 def parse_meta_page_id(input_value: str) -> str:
