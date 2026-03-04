@@ -1075,6 +1075,8 @@ async def api_brand_ads_timeline(
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
     days: int = Query(default=0),
+    status: str = Query(default="all"),
+    min_days: int = Query(default=0),
 ):
     from datetime import date as date_type, timedelta
 
@@ -1128,6 +1130,15 @@ async def api_brand_ads_timeline(
         if platform != "all":
             conditions.append("platform = %s")
             params.append(platform)
+
+        if status == "active":
+            conditions.append("(end_date IS NULL OR last_seen_at::date >= CURRENT_DATE - INTERVAL '1 day')")
+        elif status == "ended":
+            conditions.append("(end_date IS NOT NULL AND last_seen_at::date < CURRENT_DATE - INTERVAL '1 day')")
+
+        if min_days > 0:
+            conditions.append("(COALESCE(last_seen_at::date, CURRENT_DATE) - saved_at::date + 1) >= %s")
+            params.append(min_days)
 
         # Date range filter: ad's [saved_at, last_seen_at] overlaps [range_start, range_end]
         conditions.append("saved_at::date <= %s")

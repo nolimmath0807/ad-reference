@@ -73,6 +73,8 @@ export function CompetitorDetailPage() {
   const [timelineData, setTimelineData] = useState<TimelineResponse | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineRange, setTimelineRange] = useState<"30" | "90" | "all">("90");
+  const [timelineStatus, setTimelineStatus] = useState<"all" | "active" | "ended">("all");
+  const [timelineMinDays, setTimelineMinDays] = useState<number>(0);
 
   const requestIdRef = useRef(0);
   const loadingMoreRef = useRef(false);
@@ -138,11 +140,17 @@ export function CompetitorDetailPage() {
     if (timelineRange !== "all") {
       params.days = Number(timelineRange);
     }
+    if (timelineStatus !== "all") {
+      params.status = timelineStatus;
+    }
+    if (timelineMinDays > 0) {
+      params.min_days = timelineMinDays;
+    }
     api
       .get<TimelineResponse>(`/brands/${id}/ads/timeline`, params)
       .then(setTimelineData)
       .finally(() => setTimelineLoading(false));
-  }, [activeTab, id, searchParams.platform, timelineRange]);
+  }, [activeTab, id, searchParams.platform, timelineRange, timelineStatus, timelineMinDays]);
 
   const handleTimelineAdClick = (timelineAd: TimelineAd) => {
     // Convert TimelineAd to Ad shape for the existing detail modal
@@ -509,6 +517,54 @@ export function CompetitorDetailPage() {
                   )}
                 >
                   {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Status + min days filters */}
+          <div className="flex items-center justify-between">
+            {/* Status filter */}
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+              {[
+                { key: "all", label: "전체" },
+                { key: "active", label: "게재중" },
+                { key: "ended", label: "게재종료" },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  onClick={() => setTimelineStatus(option.key as "all" | "active" | "ended")}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                    timelineStatus === option.key
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Min days filter */}
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+              {[
+                { key: 0, label: "전체" },
+                { key: 7, label: "7일+" },
+                { key: 14, label: "14일+" },
+                { key: 30, label: "30일+" },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  onClick={() => setTimelineMinDays(option.key)}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                    timelineMinDays === option.key
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {option.label}
                 </button>
               ))}
             </div>
