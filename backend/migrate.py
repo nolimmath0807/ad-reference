@@ -252,6 +252,21 @@ def migrate():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_daily_brand_stats_date ON daily_brand_stats(stat_date DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_daily_brand_stats_brand ON daily_brand_stats(brand_id, stat_date DESC)")
 
+    # 15. ad_scripts table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ad_scripts (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            ad_id UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE UNIQUE,
+            script_text TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            error_message TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_scripts_ad_id ON ad_scripts(ad_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_scripts_status ON ad_scripts(status)")
+
     conn.commit()
     cur.close()
     conn.close()

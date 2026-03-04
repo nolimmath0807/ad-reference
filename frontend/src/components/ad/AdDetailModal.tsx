@@ -8,6 +8,7 @@ import {
   Loader2,
   ImageIcon,
   Film,
+  FileText,
 } from "lucide-react";
 import {
   Dialog,
@@ -27,7 +28,7 @@ import { toast } from "sonner";
 import { AdMetrics } from "@/components/ad/AdMetrics";
 import { SimilarAds } from "@/components/ad/SimilarAds";
 import { SaveToBoardDialog } from "@/components/ad/SaveToBoardDialog";
-import type { Ad, AdDetailResponse, PlatformType, FormatType } from "@/types/ad";
+import type { Ad, AdDetailResponse, AdScriptResponse, PlatformType, FormatType } from "@/types/ad";
 
 interface AdDetailModalProps {
   ad: Ad | null;
@@ -99,6 +100,8 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [mediaError, setMediaError] = useState(false);
+  const [script, setScript] = useState<AdScriptResponse | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
 
   useEffect(() => {
     if (open && ad) {
@@ -112,12 +115,58 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
     }
   }, [open, ad?.id]);
 
+  useEffect(() => {
+    if (open && ad && ad.media_type === "video") {
+      api
+        .get<AdScriptResponse>(`/ads/${ad.id}/script`)
+        .then((data) => {
+          if (data.status !== "not_found") setScript(data);
+        })
+        .catch(() => {});
+    }
+    if (!open) {
+      setScript(null);
+      setIsExtracting(false);
+    }
+  }, [open, ad?.id]);
+
   const currentAd = detail?.ad ?? ad;
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/ads/${currentAd?.id}`;
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard.");
+  };
+
+  const handleExtractScript = async () => {
+    if (!currentAd) return;
+    setIsExtracting(true);
+    try {
+      const result = await api.post<AdScriptResponse & { job_id?: string }>(
+        `/ads/${currentAd.id}/script/extract`
+      );
+      if (result.status === "completed") {
+        setScript(result);
+        setIsExtracting(false);
+        return;
+      }
+      const pollInterval = setInterval(async () => {
+        const status = await api.get<AdScriptResponse>(
+          `/ads/${currentAd.id}/script`
+        );
+        if (status.status === "completed" || status.status === "failed") {
+          setScript(status);
+          setIsExtracting(false);
+          clearInterval(pollInterval);
+        }
+      }, 3000);
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setIsExtracting(false);
+      }, 120000);
+    } catch {
+      setIsExtracting(false);
+    }
   };
 
   if (!currentAd) return null;
@@ -279,6 +328,57 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                       <p className="text-sm leading-relaxed text-foreground/80">
                         {currentAd.ad_copy}
                       </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Ad Script (video only) */}
+                {currentAd.media_type === "video" && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                          Ad Script
+                        </p>
+                        {(!script || script.status === "failed") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={handleExtractScript}
+                            disabled={isExtracting}
+                          >
+                            {isExtracting ? (
+                              <>
+                                <Loader2 className="mr-1 size-3 animate-spin" />
+                                추출 중...
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="mr-1 size-3" />
+                                원고 추출
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                      {script?.status === "completed" && script.script_text && (
+                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/80">
+                          {script.script_text}
+                        </p>
+                      )}
+                      {script?.status === "processing" && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Loader2 className="size-3.5 animate-spin" />
+                          원고를 추출하고 있습니다...
+                        </div>
+                      )}
+                      {script?.status === "failed" && (
+                        <p className="text-sm text-destructive">
+                          추출 실패: {script.error_message || "알 수 없는 오류"}
+                        </p>
+                      )}
                     </div>
                   </>
                 )}

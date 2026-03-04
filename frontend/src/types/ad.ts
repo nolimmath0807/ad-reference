@@ -89,3 +89,10 @@ export interface AdSaveRequest {
   tags?: string[];
   landing_page_url?: string;
 }
+
+export interface AdScriptResponse {
+  ad_id: string;
+  script_text: string | null;
+  status: "pending" | "processing" | "completed" | "failed" | "not_found";
+  error_message: string | null;
+}

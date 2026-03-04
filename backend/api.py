@@ -28,6 +28,7 @@ from ads.search import search_ads
 from ads.detail import get_ad_detail
 from ads.save import save_ad
 from ads.model import AdSaveRequest
+from ads.extract_script import extract_script, get_script
 
 from boards.create import create_board
 from boards.list import list_boards
@@ -1194,6 +1195,64 @@ async def api_brand_ads_timeline(
         "date_range_end": range_end.isoformat(),
         "total": len(items),
     }
+
+
+# ──────────────────────────────────────────────
+# Ad Script Extraction (JWT required)
+# ──────────────────────────────────────────────
+
+_script_jobs: dict[str, dict] = {}
+
+
+def _run_script_extraction(job_id: str, ad_id: str):
+    _script_jobs[job_id]["status"] = "processing"
+    try:
+        result = extract_script(ad_id)
+        _script_jobs[job_id]["status"] = result["status"]
+        _script_jobs[job_id]["result"] = result
+    except Exception as e:
+        _script_jobs[job_id]["status"] = "failed"
+        _script_jobs[job_id]["error"] = str(e)
+
+
+@app.post("/ads/{ad_id}/script/extract", status_code=202)
+async def api_extract_ad_script(
+    ad_id: str = Path(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    user: dict = Depends(get_user),
+):
+    """광고 영상에서 원고를 추출한다 (비동기)."""
+    existing = get_script(ad_id)
+    if existing and existing["status"] == "completed":
+        return existing
+
+    with get_db() as (conn, cur):
+        cur.execute("SELECT media_type, preview_url FROM ads WHERE id = %s", (ad_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Ad not found")
+        if row[0] != "video":
+            raise HTTPException(status_code=400, detail="Only video ads support script extraction")
+        if not row[1]:
+            raise HTTPException(status_code=400, detail="No preview URL available")
+
+    job_id = uuid.uuid4().hex[:12]
+    _script_jobs[job_id] = {"job_id": job_id, "ad_id": ad_id, "status": "started"}
+    background_tasks.add_task(_run_script_extraction, job_id, ad_id)
+
+    return {"job_id": job_id, "ad_id": ad_id, "status": "started"}
+
+
+@app.get("/ads/{ad_id}/script")
+async def api_get_ad_script(
+    ad_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    """저장된 원고를 조회한다."""
+    result = get_script(ad_id)
+    if not result:
+        return {"ad_id": ad_id, "script_text": None, "status": "not_found"}
+    return result
 
 
 # ──────────────────────────────────────────────

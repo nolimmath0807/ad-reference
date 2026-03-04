@@ -103,6 +103,13 @@ class TimelineResponse(BaseModel):
     total: int
 
 
+class AdScriptResponse(BaseModel):
+    ad_id: str
+    script_text: Optional[str] = None
+    status: str  # pending | processing | completed | failed | not_found
+    error_message: Optional[str] = None
+
+
 def main() -> dict:
     ad = Ad(
         id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
