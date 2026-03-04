@@ -1074,8 +1074,13 @@ async def api_brand_ads_timeline(
     format: str = Query(default="all"),
     date_from: str = Query(default=""),
     date_to: str = Query(default=""),
+    days: int = Query(default=0),
 ):
     from datetime import date as date_type, timedelta
+
+    # days 파라미터: date_from이 명시되지 않았고 days > 0이면 자동 변환
+    if not date_from and days > 0:
+        date_from = (date_type.today() - timedelta(days=days)).isoformat()
 
     with get_db() as (conn, cur):
         # Verify brand exists
