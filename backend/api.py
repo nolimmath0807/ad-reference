@@ -1088,15 +1088,14 @@ async def api_brand_ads_timeline(
         if not cur.fetchone():
             raise HTTPException(status_code=404, detail="Brand not found")
 
-        # Date range defaults: use actual data range when not specified
-        if not date_from or not date_to:
-            cur.execute(
-                "SELECT MIN(saved_at::date), MAX(last_seen_at::date) FROM ads WHERE brand_id = %s AND saved_at IS NOT NULL",
-                (brand_id,),
-            )
-            row = cur.fetchone()
-            data_min = row[0]  # earliest saved_at
-            data_max = row[1]  # latest last_seen_at
+        # Actual data range (always query for clamping)
+        cur.execute(
+            "SELECT MIN(saved_at::date), MAX(last_seen_at::date) FROM ads WHERE brand_id = %s AND saved_at IS NOT NULL",
+            (brand_id,),
+        )
+        row = cur.fetchone()
+        data_min = row[0]  # earliest saved_at
+        data_max = row[1]  # latest last_seen_at
 
         if date_from:
             range_start = date_type.fromisoformat(date_from)
@@ -1107,6 +1106,10 @@ async def api_brand_ads_timeline(
             range_end = date_type.fromisoformat(date_to)
         else:
             range_end = date_type.today()
+
+        # Clamp range_start to actual data minimum (avoid empty leading space)
+        if data_min and range_start < data_min:
+            range_start = data_min
 
         conditions = ["brand_id = %s", "saved_at IS NOT NULL"]
         params: list = [brand_id]
