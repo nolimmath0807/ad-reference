@@ -72,6 +72,7 @@ def get_active_brand_sources() -> list[dict]:
 def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
     """Dispatch scraping by platform and source_type."""
     start_time = time.monotonic()
+    scrape_started_at = datetime.now()  # DB 비교용 (monotonic은 DB 비교 불가)
     platform = source["platform"]
     source_type = source["source_type"]
     source_value = source["source_value"]
@@ -182,6 +183,13 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
             on_batch(ads)
     elif platform == "tiktok" and source_type == "keyword":
         logger.info(f"TikTok scraping not yet implemented for: {source_value}")
+
+    # full 모드에서만 종료 마킹 (incremental은 일부만 스캔하므로 부적합)
+    if mode == "full":
+        from platforms.scrape_worker import mark_unseen_ads_as_ended
+        ended = mark_unseen_ads_as_ended(brand_id, platform, scrape_started_at)
+        if ended > 0:
+            logger.info(f"[{source['brand_name']}:{platform}:{source_value}] {ended}건 광고 종료 처리")
 
     result.duration_seconds = round(time.monotonic() - start_time, 1)
     logger.info(

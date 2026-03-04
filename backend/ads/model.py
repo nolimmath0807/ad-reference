@@ -84,6 +84,25 @@ class AdSaveRequest(BaseModel):
     landing_page_url: Optional[str] = None
 
 
+class TimelineAd(BaseModel):
+    id: str
+    advertiser_name: str
+    thumbnail_url: Optional[str] = None
+    platform: Platform
+    format: Format
+    media_type: MediaType
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    ad_copy: Optional[str] = None
+
+
+class TimelineResponse(BaseModel):
+    items: list[TimelineAd]
+    date_range_start: date
+    date_range_end: date
+    total: int
+
+
 def main() -> dict:
     ad = Ad(
         id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",

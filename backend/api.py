@@ -1066,6 +1066,117 @@ async def api_brand_ads(
     }
 
 
+@app.get("/brands/{brand_id}/ads/timeline")
+async def api_brand_ads_timeline(
+    brand_id: str = Path(...),
+    user: dict = Depends(get_user),
+    platform: str = Query(default="all"),
+    format: str = Query(default="all"),
+    date_from: str = Query(default=""),
+    date_to: str = Query(default=""),
+):
+    from datetime import date as date_type, timedelta
+
+    with get_db() as (conn, cur):
+        # Verify brand exists
+        cur.execute("SELECT id FROM brands WHERE id = %s", (brand_id,))
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="Brand not found")
+
+        # Date range defaults: use actual data range when not specified
+        if not date_from or not date_to:
+            cur.execute(
+                "SELECT MIN(saved_at::date), MAX(last_seen_at::date) FROM ads WHERE brand_id = %s AND saved_at IS NOT NULL",
+                (brand_id,),
+            )
+            row = cur.fetchone()
+            data_min = row[0]  # earliest saved_at
+            data_max = row[1]  # latest last_seen_at
+
+        if date_from:
+            range_start = date_type.fromisoformat(date_from)
+        else:
+            range_start = data_min or (date_type.today() - timedelta(days=90))
+
+        if date_to:
+            range_end = date_type.fromisoformat(date_to)
+        else:
+            range_end = date_type.today()
+
+        conditions = ["brand_id = %s", "saved_at IS NOT NULL"]
+        params: list = [brand_id]
+
+        # Thumbnail filters (same as brand ads)
+        conditions.append("thumbnail_url != ''")
+        conditions.append("thumbnail_url NOT LIKE '%%.html%%'")
+
+        # Default format filter
+        if format == "all":
+            conditions.append("format != 'text'")
+        else:
+            conditions.append("format = %s")
+            params.append(format)
+
+        if platform != "all":
+            conditions.append("platform = %s")
+            params.append(platform)
+
+        # Date range filter: ad's [saved_at, last_seen_at] overlaps [range_start, range_end]
+        conditions.append("saved_at::date <= %s")
+        params.append(range_end.isoformat())
+        conditions.append("last_seen_at::date >= %s")
+        params.append(range_start.isoformat())
+
+        where = " AND ".join(conditions)
+
+        cur.execute(
+            f"""
+            SELECT id, advertiser_name, thumbnail_url, platform, format,
+                   media_type, saved_at, last_seen_at, end_date, ad_copy
+            FROM ads
+            WHERE {where}
+            ORDER BY CASE WHEN end_date IS NULL THEN 0 ELSE 1 END ASC,
+                     (COALESCE(last_seen_at::date, CURRENT_DATE) - saved_at::date) DESC,
+                     saved_at ASC
+            LIMIT 200
+            """,
+            params,
+        )
+        cols = [desc[0] for desc in cur.description]
+        items = []
+        for r in cur.fetchall():
+            d = dict(zip(cols, r))
+            # Map saved_at -> start_date
+            if d.get("saved_at"):
+                saved_at = d.pop("saved_at")
+                d["start_date"] = saved_at.date().isoformat() if hasattr(saved_at, "date") else str(saved_at)[:10]
+            else:
+                d.pop("saved_at", None)
+                d["start_date"] = None
+            # end_date: DB의 end_date(종료 마킹) 우선 사용, 없으면 last_seen_at
+            original_end_date = d.pop("end_date", None)
+            last_seen_at = d.pop("last_seen_at", None)
+            if original_end_date:
+                d["end_date"] = original_end_date.isoformat() if hasattr(original_end_date, "isoformat") else str(original_end_date)
+            elif last_seen_at:
+                d["end_date"] = last_seen_at.date().isoformat() if hasattr(last_seen_at, "date") else str(last_seen_at)[:10]
+            else:
+                d["end_date"] = None
+            for k, v in d.items():
+                if hasattr(v, "isoformat"):
+                    d[k] = v.isoformat()
+                elif isinstance(v, uuid.UUID):
+                    d[k] = str(v)
+            items.append(d)
+
+    return {
+        "items": items,
+        "date_range_start": range_start.isoformat(),
+        "date_range_end": range_end.isoformat(),
+        "total": len(items),
+    }
+
+
 # ──────────────────────────────────────────────
 # Batch Operations (JWT required)
 # ──────────────────────────────────────────────

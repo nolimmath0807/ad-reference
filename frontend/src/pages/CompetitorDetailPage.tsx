@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { ExternalLink, Pencil, Activity, ImageIcon, Play, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -16,9 +17,10 @@ import { FilterBar } from "@/components/dashboard/FilterBar";
 import { AdGrid } from "@/components/dashboard/AdGrid";
 import { AdDetailModal } from "@/components/ad/AdDetailModal";
 import { EditBrandDialog } from "@/components/competitor/EditBrandDialog";
+import { AdTimeline } from "@/components/competitor/AdTimeline";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
-import type { Ad, AdSearchParams, AdSearchResponse, PlatformType, FormatType, SortType } from "@/types/ad";
+import type { Ad, AdSearchParams, AdSearchResponse, PlatformType, FormatType, SortType, TimelineAd, TimelineResponse } from "@/types/ad";
 import type { BrandStats } from "@/types/competitor";
 
 const PLATFORM_DOT_COLORS: Record<string, string> = {
@@ -67,6 +69,10 @@ export function CompetitorDetailPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<"ads" | "timeline">("ads");
+  const [timelineData, setTimelineData] = useState<TimelineResponse | null>(null);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+  const [timelineRange, setTimelineRange] = useState<"30" | "90" | "all">("90");
 
   const requestIdRef = useRef(0);
   const loadingMoreRef = useRef(false);
@@ -121,6 +127,49 @@ export function CompetitorDetailPage() {
     setPage(1);
     fetchAds({ ...searchParams, page: 1 });
   }, [searchParams, fetchAds]);
+
+  // Fetch timeline data
+  useEffect(() => {
+    if (activeTab !== "timeline" || !id) return;
+    setTimelineLoading(true);
+    const params: Record<string, string | number | boolean | undefined> = {
+      platform: searchParams.platform === "all" ? undefined : searchParams.platform,
+    };
+    if (timelineRange !== "all") {
+      params.days = Number(timelineRange);
+    }
+    api
+      .get<TimelineResponse>(`/brands/${id}/ads/timeline`, params)
+      .then(setTimelineData)
+      .finally(() => setTimelineLoading(false));
+  }, [activeTab, id, searchParams.platform, timelineRange]);
+
+  const handleTimelineAdClick = (timelineAd: TimelineAd) => {
+    // Convert TimelineAd to Ad shape for the existing detail modal
+    const ad: Ad = {
+      id: timelineAd.id,
+      platform: timelineAd.platform,
+      format: timelineAd.format,
+      advertiser_name: timelineAd.advertiser_name,
+      advertiser_handle: null,
+      advertiser_avatar_url: null,
+      thumbnail_url: timelineAd.thumbnail_url ?? "",
+      preview_url: null,
+      media_type: timelineAd.media_type,
+      ad_copy: timelineAd.ad_copy,
+      cta_text: null,
+      likes: null,
+      comments: null,
+      shares: null,
+      start_date: timelineAd.start_date,
+      end_date: timelineAd.end_date,
+      tags: [],
+      landing_page_url: null,
+      created_at: "",
+      saved_at: null,
+    };
+    setSelectedAd(ad);
+  };
 
   const updateParams = (updates: Partial<AdSearchParams>) => {
     setSearchParams((prev) => ({ ...prev, ...updates, page: 1 }));
@@ -330,68 +379,151 @@ export function CompetitorDetailPage() {
         </div>
       )}
 
-      {/* Search */}
-      <SearchBar onSearch={handleSearch} defaultValue={searchParams.keyword ?? ""} />
+      {/* Content Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "ads" | "timeline")}>
+        <TabsList>
+          <TabsTrigger value="ads">수집된 광고</TabsTrigger>
+          <TabsTrigger value="timeline">게재 타임라인</TabsTrigger>
+        </TabsList>
 
-      {/* Platform Tabs with Count Badges */}
-      {stats && (
-        <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
-          {[
-            { key: "all", label: "All", count: stats.total_ads },
-            ...Object.entries(stats.ads_by_platform).map(([platform, count]) => ({
-              key: platform,
-              label: platform.charAt(0).toUpperCase() + platform.slice(1),
-              count,
-            })),
-          ].map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => handlePlatformChange(tab.key as "all" | PlatformType)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
-                searchParams.platform === tab.key
-                  ? "bg-background shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {tab.label}
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
-                  searchParams.platform === tab.key
-                    ? "bg-primary/10 text-primary"
-                    : "bg-muted text-muted-foreground"
-                )}
-              >
-                {tab.count}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
+        <TabsContent value="ads" className="space-y-6 mt-4">
+          {/* Search */}
+          <SearchBar onSearch={handleSearch} defaultValue={searchParams.keyword ?? ""} />
 
-      <FilterBar
-        format={searchParams.format ?? "all"}
-        sort={searchParams.sort ?? "recent"}
-        dateFrom={searchParams.date_from ?? ""}
-        dateTo={searchParams.date_to ?? ""}
-        industry={searchParams.industry ?? ""}
-        onFormatChange={handleFormatChange}
-        onSortChange={handleSortChange}
-        onDateFromChange={handleDateFromChange}
-        onDateToChange={handleDateToChange}
-        onIndustryChange={handleIndustryChange}
-        onClearFilters={handleClearFilters}
-      />
+          {/* Platform Tabs with Count Badges */}
+          {stats && (
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+              {[
+                { key: "all", label: "All", count: stats.total_ads },
+                ...Object.entries(stats.ads_by_platform).map(([platform, count]) => ({
+                  key: platform,
+                  label: platform.charAt(0).toUpperCase() + platform.slice(1),
+                  count,
+                })),
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => handlePlatformChange(tab.key as "all" | PlatformType)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                    searchParams.platform === tab.key
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.label}
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                      searchParams.platform === tab.key
+                        ? "bg-primary/10 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
-      {/* Ad grid */}
-      <AdGrid
-        ads={ads}
-        loading={loading}
-        hasNext={hasNext}
-        onAdClick={handleAdClick}
-        onLoadMore={handleLoadMore}
-      />
+          <FilterBar
+            format={searchParams.format ?? "all"}
+            sort={searchParams.sort ?? "recent"}
+            dateFrom={searchParams.date_from ?? ""}
+            dateTo={searchParams.date_to ?? ""}
+            industry={searchParams.industry ?? ""}
+            onFormatChange={handleFormatChange}
+            onSortChange={handleSortChange}
+            onDateFromChange={handleDateFromChange}
+            onDateToChange={handleDateToChange}
+            onIndustryChange={handleIndustryChange}
+            onClearFilters={handleClearFilters}
+          />
+
+          {/* Ad grid */}
+          <AdGrid
+            ads={ads}
+            loading={loading}
+            hasNext={hasNext}
+            onAdClick={handleAdClick}
+            onLoadMore={handleLoadMore}
+          />
+        </TabsContent>
+
+        <TabsContent value="timeline" className="space-y-4 mt-4">
+          {/* Platform filter + date range controls */}
+          <div className="flex items-center justify-between">
+            {/* Platform filter (reuse existing) */}
+            {stats && (
+              <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+                {[
+                  { key: "all", label: "All", count: stats.total_ads },
+                  ...Object.entries(stats.ads_by_platform).map(([platform, count]) => ({
+                    key: platform,
+                    label: platform.charAt(0).toUpperCase() + platform.slice(1),
+                    count,
+                  })),
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => handlePlatformChange(tab.key as "all" | PlatformType)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                      searchParams.platform === tab.key
+                        ? "bg-background shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {tab.label}
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] tabular-nums",
+                        searchParams.platform === tab.key
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Date range presets */}
+            <div className="flex items-center gap-1 rounded-full bg-muted/50 p-1">
+              {[
+                { key: "30", label: "최근 30일" },
+                { key: "90", label: "최근 90일" },
+                { key: "all", label: "전체" },
+              ].map((preset) => (
+                <button
+                  key={preset.key}
+                  onClick={() => setTimelineRange(preset.key as "30" | "90" | "all")}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+                    timelineRange === preset.key
+                      ? "bg-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Timeline chart */}
+          <AdTimeline
+            items={timelineData?.items ?? []}
+            dateRangeStart={timelineData?.date_range_start ?? new Date().toISOString().slice(0, 10)}
+            dateRangeEnd={timelineData?.date_range_end ?? new Date().toISOString().slice(0, 10)}
+            onAdClick={handleTimelineAdClick}
+            loading={timelineLoading}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Edit brand dialog */}
       {stats && (

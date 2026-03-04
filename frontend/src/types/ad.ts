@@ -51,6 +51,25 @@ export interface AdDetailResponse {
   similar_ads: Ad[];
 }
 
+export interface TimelineAd {
+  id: string;
+  advertiser_name: string;
+  thumbnail_url: string | null;
+  platform: PlatformType;
+  format: FormatType;
+  media_type: MediaType;
+  start_date: string | null;
+  end_date: string | null;
+  ad_copy: string | null;
+}
+
+export interface TimelineResponse {
+  items: TimelineAd[];
+  date_range_start: string;
+  date_range_end: string;
+  total: number;
+}
+
 export interface AdSaveRequest {
   platform: PlatformType;
   format: FormatType;

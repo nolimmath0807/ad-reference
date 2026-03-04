@@ -123,102 +123,98 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   if (!currentAd) return null;
 
   const platform = platformStyles[currentAd.platform];
-  const isVideoAd =
-    currentAd.media_type === "video" ||
-    (currentAd.preview_url != null && isYouTubeUrl(currentAd.preview_url));
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] overflow-hidden p-0 sm:max-w-5xl">
           <ScrollArea className="max-h-[90vh]">
-            <div className={cn("flex flex-col", !isVideoAd && "lg:flex-row")}>
-              {/* Media preview */}
-              <div
-                className={cn(
-                  "flex min-h-[300px] items-center justify-center bg-muted/30",
-                  isVideoAd ? "w-full" : "lg:w-[55%]"
-                )}
-              >
-                {currentAd.format === "text" && currentAd.ad_copy ? (
-                  <div className="flex min-h-[300px] w-full flex-col justify-center gap-4 rounded-lg border bg-background p-8">
-                    <div className="flex items-center gap-2">
-                      <span className="rounded bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">Ad</span>
-                      {currentAd.landing_page_url && (
-                        <span className="text-sm text-green-700 dark:text-green-400">
-                          {(() => { try { return new URL(currentAd.landing_page_url).hostname; } catch { return ''; } })()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <p className="text-xl font-medium text-blue-600 dark:text-blue-400">
-                        {currentAd.ad_copy.split('\n')[0]}
-                      </p>
-                      {currentAd.ad_copy.split('\n').length > 1 && (
-                        <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/70">
-                          {currentAd.ad_copy.split('\n').slice(1).join('\n')}
+            {/* Header hidden for a11y */}
+            <DialogHeader className="sr-only">
+              <DialogTitle>{currentAd.advertiser_name} Ad Detail</DialogTitle>
+              <DialogDescription>Full details for this ad creative.</DialogDescription>
+            </DialogHeader>
+
+            {/* Main two-column layout */}
+            <div className="flex flex-col md:flex-row">
+              {/* Left: Media preview */}
+              <div className="flex shrink-0 items-center justify-center bg-muted/30 md:sticky md:top-0 md:w-[55%] md:self-start">
+                <div className="flex min-h-[250px] w-full items-center justify-center md:min-h-[400px]">
+                  {currentAd.format === "text" && currentAd.ad_copy ? (
+                    <div className="flex min-h-[300px] w-full flex-col justify-center gap-4 rounded-lg border bg-background p-8">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-muted px-2 py-1 text-xs font-semibold text-muted-foreground">Ad</span>
+                        {currentAd.landing_page_url && (
+                          <span className="text-sm text-green-700 dark:text-green-400">
+                            {(() => { try { return new URL(currentAd.landing_page_url).hostname; } catch { return ''; } })()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-xl font-medium text-blue-600 dark:text-blue-400">
+                          {currentAd.ad_copy.split('\n')[0]}
                         </p>
-                      )}
+                        {currentAd.ad_copy.split('\n').length > 1 && (
+                          <p className="whitespace-pre-line text-sm leading-relaxed text-foreground/70">
+                            {currentAd.ad_copy.split('\n').slice(1).join('\n')}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : currentAd.format === "text" && !currentAd.ad_copy && currentAd.thumbnail_url && !mediaError ? (
-                  <div className="relative flex min-h-[300px] w-full items-center justify-center">
+                  ) : currentAd.format === "text" && !currentAd.ad_copy && currentAd.thumbnail_url && !mediaError ? (
+                    <div className="relative flex min-h-[300px] w-full items-center justify-center">
+                      <img
+                        src={getImageUrl(currentAd.thumbnail_url)}
+                        alt={currentAd.advertiser_name}
+                        className="max-h-[500px] w-full object-contain md:max-h-[70vh]"
+                        onError={() => setMediaError(true)}
+                      />
+                      <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white">
+                        TEXT
+                      </div>
+                    </div>
+                  ) : mediaError || (!currentAd.thumbnail_url && !currentAd.preview_url) ? (
+                    <div className="flex h-full min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-muted/50">
+                      {currentAd.media_type === "video" ? (
+                        <Film className="size-12 text-muted-foreground/40" />
+                      ) : (
+                        <ImageIcon className="size-12 text-muted-foreground/40" />
+                      )}
+                      <Badge variant="secondary" className="text-xs">
+                        {formatLabels[currentAd.format]}
+                      </Badge>
+                    </div>
+                  ) : currentAd.preview_url &&
+                    isYouTubeUrl(currentAd.preview_url) ? (
+                    <iframe
+                      src={getYouTubeEmbedUrl(currentAd.preview_url)}
+                      className="aspect-video w-full md:max-h-[70vh]"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : currentAd.media_type === "video" &&
+                    currentAd.preview_url &&
+                    isPlayableVideoUrl(currentAd.preview_url) ? (
+                    <video
+                      src={currentAd.preview_url}
+                      controls
+                      className="w-full object-contain md:max-h-[70vh]"
+                      poster={getImageUrl(currentAd.thumbnail_url)}
+                      onError={() => setMediaError(true)}
+                    />
+                  ) : (
                     <img
                       src={getImageUrl(currentAd.thumbnail_url)}
                       alt={currentAd.advertiser_name}
-                      className="max-h-[500px] w-full object-contain"
+                      className="max-h-[500px] w-full object-contain md:max-h-[70vh]"
                       onError={() => setMediaError(true)}
                     />
-                    <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white">
-                      TEXT
-                    </div>
-                  </div>
-                ) : mediaError || (!currentAd.thumbnail_url && !currentAd.preview_url) ? (
-                  <div className="flex h-full min-h-[300px] w-full flex-col items-center justify-center gap-3 bg-muted/50">
-                    {currentAd.media_type === "video" ? (
-                      <Film className="size-12 text-muted-foreground/40" />
-                    ) : (
-                      <ImageIcon className="size-12 text-muted-foreground/40" />
-                    )}
-                    <Badge variant="secondary" className="text-xs">
-                      {formatLabels[currentAd.format]}
-                    </Badge>
-                  </div>
-                ) : currentAd.preview_url &&
-                  isYouTubeUrl(currentAd.preview_url) ? (
-                  <iframe
-                    src={getYouTubeEmbedUrl(currentAd.preview_url)}
-                    className="aspect-video max-h-[400px] w-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : currentAd.media_type === "video" &&
-                  currentAd.preview_url &&
-                  isPlayableVideoUrl(currentAd.preview_url) ? (
-                  <video
-                    src={currentAd.preview_url}
-                    controls
-                    className="max-h-[500px] w-full object-contain"
-                    poster={getImageUrl(currentAd.thumbnail_url)}
-                    onError={() => setMediaError(true)}
-                  />
-                ) : (
-                  <img
-                    src={getImageUrl(currentAd.thumbnail_url)}
-                    alt={currentAd.advertiser_name}
-                    className="max-h-[500px] w-full object-contain"
-                    onError={() => setMediaError(true)}
-                  />
-                )}
+                  )}
+                </div>
               </div>
 
-              {/* Details */}
-              <div
-                className={cn(
-                  "flex flex-col gap-5 p-6",
-                  isVideoAd ? "w-full" : "lg:w-[45%]"
-                )}
-              >
+              {/* Right: Details */}
+              <div className="flex flex-col gap-5 p-6 md:w-[45%] md:overflow-y-auto md:max-h-[80vh]">
                 {/* Loading indicator */}
                 {isLoading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -226,12 +222,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     Loading details...
                   </div>
                 )}
-
-                {/* Header hidden for a11y, visually using advertiser below */}
-                <DialogHeader className="sr-only">
-                  <DialogTitle>{currentAd.advertiser_name} Ad Detail</DialogTitle>
-                  <DialogDescription>Full details for this ad creative.</DialogDescription>
-                </DialogHeader>
 
                 {/* Advertiser */}
                 <div className="flex items-center gap-3">
@@ -271,11 +261,26 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                   </Badge>
                 </div>
 
+                {/* Metrics */}
+                <AdMetrics
+                  likes={currentAd.likes}
+                  comments={currentAd.comments}
+                  shares={currentAd.shares}
+                />
+
                 {/* Ad copy */}
                 {currentAd.ad_copy && (
-                  <p className="text-sm leading-relaxed text-foreground/80">
-                    {currentAd.ad_copy}
-                  </p>
+                  <>
+                    <Separator />
+                    <div className="flex flex-col gap-1.5">
+                      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Ad Copy
+                      </p>
+                      <p className="text-sm leading-relaxed text-foreground/80">
+                        {currentAd.ad_copy}
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 {/* CTA */}
@@ -290,12 +295,19 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                   </div>
                 )}
 
-                {/* Metrics */}
-                <AdMetrics
-                  likes={currentAd.likes}
-                  comments={currentAd.comments}
-                  shares={currentAd.shares}
-                />
+                {/* Dates */}
+                {(currentAd.start_date || currentAd.end_date) && (
+                  <>
+                    <Separator />
+                    <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                      <Calendar className="mt-0.5 size-3.5 shrink-0" />
+                      <span className="leading-relaxed">
+                        {formatDate(currentAd.start_date)}
+                        {currentAd.end_date && ` \u2014 ${formatDate(currentAd.end_date)}`}
+                      </span>
+                    </div>
+                  </>
+                )}
 
                 {/* Tags */}
                 {currentAd.tags.length > 0 && (
@@ -327,17 +339,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                   </a>
                 )}
 
-                {/* Dates */}
-                {(currentAd.start_date || currentAd.end_date) && (
-                  <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
-                    <Calendar className="mt-0.5 size-3.5 shrink-0" />
-                    <span className="leading-relaxed">
-                      {formatDate(currentAd.start_date)}
-                      {currentAd.end_date && ` \u2014 ${formatDate(currentAd.end_date)}`}
-                    </span>
-                  </div>
-                )}
-
                 <Separator />
 
                 {/* Actions */}
@@ -353,27 +354,26 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     <Link2 className="size-4" />
                   </Button>
                 </div>
-
-                {/* Similar ads */}
-                {detail?.similar_ads && detail.similar_ads.length > 0 && (
-                  <>
-                    <Separator />
-                    <SimilarAds
-                      ads={detail.similar_ads}
-                      onAdClick={(newAd) => {
-                        setDetail(null);
-                        setIsLoading(true);
-                        setMediaError(false);
-                        api.get<AdDetailResponse>(`/ads/${newAd.id}`).then((data) => {
-                          setDetail(data);
-                          setIsLoading(false);
-                        });
-                      }}
-                    />
-                  </>
-                )}
               </div>
             </div>
+
+            {/* Similar ads - full width below */}
+            {detail?.similar_ads && detail.similar_ads.length > 0 && (
+              <div className="border-t px-6 py-5">
+                <SimilarAds
+                  ads={detail.similar_ads}
+                  onAdClick={(newAd) => {
+                    setDetail(null);
+                    setIsLoading(true);
+                    setMediaError(false);
+                    api.get<AdDetailResponse>(`/ads/${newAd.id}`).then((data) => {
+                      setDetail(data);
+                      setIsLoading(false);
+                    });
+                  }}
+                />
+              </div>
+            )}
           </ScrollArea>
         </DialogContent>
       </Dialog>

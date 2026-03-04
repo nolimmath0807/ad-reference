@@ -15,6 +15,35 @@ from utils.activity_log import log_activity
 logger = logging.getLogger("scrape_worker")
 
 
+def mark_unseen_ads_as_ended(brand_id: str, platform: str, scrape_started_at: datetime) -> int:
+    """수집 시작 이전에 last_seen_at이 갱신되지 않은 광고에 end_date를 설정.
+
+    즉, 이번 수집에서 발견되지 않은 = 더 이상 게재되지 않는 광고.
+    end_date가 이미 설정된 광고는 건너뜀.
+
+    Returns: 종료 처리된 광고 수
+    """
+    with get_db() as (conn, cur):
+        cur.execute(
+            """
+            UPDATE ads
+            SET end_date = last_seen_at::date,
+                updated_at = NOW()
+            WHERE brand_id = %s
+              AND platform = %s
+              AND end_date IS NULL
+              AND last_seen_at < %s
+            """,
+            (brand_id, platform, scrape_started_at),
+        )
+        ended_count = cur.rowcount
+
+    if ended_count > 0:
+        logger.info(f"[{brand_id}:{platform}] {ended_count}건 광고 종료 처리 (end_date 설정)")
+
+    return ended_count
+
+
 def _upload_ad_media_to_s3(ad: PlatformAd, s3_prefix: str) -> dict:
     """Upload thumbnail_url and preview_url to S3, replace URLs in-place. Returns stats."""
     stats = {"success": 0, "failed": 0}
@@ -68,8 +97,7 @@ def _save_ads_to_db(ads: list[PlatformAd]) -> int:
                     thumbnail_url = EXCLUDED.thumbnail_url,
                     preview_url = EXCLUDED.preview_url,
                     ad_copy = EXCLUDED.ad_copy,
-                    domain = EXCLUDED.domain,
-                    saved_at = NOW()
+                    domain = EXCLUDED.domain
                 """,
                 (
                     ad.source_id, ad.platform.value, ad.format,
@@ -134,7 +162,6 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
                     creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
                     brand_id = COALESCE(EXCLUDED.brand_id, ads.brand_id),
                     updated_at = NOW(),
-                    saved_at = NOW(),
                     last_seen_at = NOW()
                 RETURNING (xmax = 0) AS is_new
                 """,
