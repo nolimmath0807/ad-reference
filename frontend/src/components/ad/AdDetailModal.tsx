@@ -187,8 +187,8 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
             {/* Main two-column layout */}
             <div className="flex flex-col md:flex-row">
               {/* Left: Media preview */}
-              <div className="flex shrink-0 items-center justify-center bg-muted/30 md:sticky md:top-0 md:w-[55%] md:self-start">
-                <div className="flex min-h-[250px] w-full items-center justify-center md:min-h-[400px]">
+              <div className="flex max-h-[40vh] shrink-0 items-center justify-center overflow-hidden bg-muted/30 md:max-h-none md:sticky md:top-0 md:w-[55%] md:self-start">
+                <div className="flex min-h-[200px] w-full items-center justify-center md:min-h-[400px]">
                   {currentAd.format === "text" && currentAd.ad_copy ? (
                     <div className="flex min-h-[300px] w-full flex-col justify-center gap-4 rounded-lg border bg-background p-8">
                       <div className="flex items-center gap-2">
@@ -215,7 +215,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                       <img
                         src={getImageUrl(currentAd.thumbnail_url)}
                         alt={currentAd.advertiser_name}
-                        className="max-h-[500px] w-full object-contain md:max-h-[70vh]"
+                        className="max-h-[40vh] w-full object-contain md:max-h-[70vh]"
                         onError={() => setMediaError(true)}
                       />
                       <div className="absolute bottom-3 right-3 rounded-md bg-black/70 px-2 py-1 text-xs font-medium text-white">
@@ -237,7 +237,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     isYouTubeUrl(currentAd.preview_url) ? (
                     <iframe
                       src={getYouTubeEmbedUrl(currentAd.preview_url)}
-                      className="aspect-video w-full md:max-h-[70vh]"
+                      className="aspect-video w-full max-h-[40vh] md:max-h-[70vh]"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
                     />
@@ -247,7 +247,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     <video
                       src={currentAd.preview_url}
                       controls
-                      className="w-full object-contain md:max-h-[70vh]"
+                      className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
                       poster={getImageUrl(currentAd.thumbnail_url)}
                       onError={() => setMediaError(true)}
                     />
@@ -255,7 +255,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     <img
                       src={getImageUrl(currentAd.thumbnail_url)}
                       alt={currentAd.advertiser_name}
-                      className="max-h-[500px] w-full object-contain md:max-h-[70vh]"
+                      className="max-h-[40vh] w-full object-contain md:max-h-[70vh]"
                       onError={() => setMediaError(true)}
                     />
                   )}
