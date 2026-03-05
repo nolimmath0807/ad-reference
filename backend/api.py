@@ -1143,9 +1143,9 @@ async def api_brand_ads_timeline(
             params.append(platform)
 
         if status == "active":
-            conditions.append("(end_date IS NULL OR last_seen_at::date >= CURRENT_DATE - INTERVAL '1 day')")
+            conditions.append("(end_date IS NULL AND last_seen_at::date >= CURRENT_DATE - INTERVAL '1 day')")
         elif status == "ended":
-            conditions.append("(end_date IS NOT NULL AND last_seen_at::date < CURRENT_DATE - INTERVAL '1 day')")
+            conditions.append("(end_date IS NOT NULL OR last_seen_at::date < CURRENT_DATE - INTERVAL '1 day')")
 
         if min_days > 0:
             conditions.append("(COALESCE(last_seen_at::date, CURRENT_DATE) - saved_at::date + 1) >= %s")
