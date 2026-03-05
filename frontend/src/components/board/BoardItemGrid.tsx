@@ -51,7 +51,7 @@ function InlineAdCard({
   return (
     <>
       <Card className="group overflow-hidden transition-shadow hover:shadow-md">
-        <div className="relative aspect-[4/3] bg-muted">
+        <div className="relative h-40 bg-muted">
           <img
             src={ad.thumbnail_url}
             alt={ad.advertiser_name}
@@ -169,7 +169,7 @@ export function BoardItemGrid({ boardId, items, onItemRemoved }: BoardItemGridPr
   }
 
   return (
-    <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
       {items.map((item) => (
         <InlineAdCard
           key={item.id}

@@ -91,7 +91,7 @@ export function BoardCard({ board, onDeleted, onUpdated }: BoardCardProps) {
     <>
       <Link to={`/boards/${board.id}`} className="group block">
         <Card className="overflow-hidden transition-shadow hover:shadow-md">
-          <div className="relative aspect-[16/10] bg-muted">
+          <div className="relative h-40 bg-muted">
             {board.cover_image_url ? (
               <img
                 src={board.cover_image_url}

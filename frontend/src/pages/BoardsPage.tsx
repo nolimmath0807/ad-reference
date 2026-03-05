@@ -37,7 +37,7 @@ export function BoardsPage() {
 
       {/* Board grid */}
       {boards && boards.items.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {boards.items.map((board) => (
             <BoardCard key={board.id} board={board} onDeleted={fetchBoards} onUpdated={fetchBoards} />
           ))}
@@ -45,7 +45,7 @@ export function BoardsPage() {
           {/* Create new board card */}
           <button
             onClick={() => setShowCreateDialog(true)}
-            className="flex aspect-[16/10] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-card transition-colors hover:border-muted-foreground/40 hover:bg-accent/50"
+            className="flex h-[232px] flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-muted-foreground/20 bg-card transition-colors hover:border-muted-foreground/40 hover:bg-accent/50"
           >
             <div className="flex size-10 items-center justify-center rounded-full bg-muted">
               <Plus className="size-5 text-muted-foreground" />
