@@ -90,12 +90,6 @@ function getYouTubeVideoId(url: string): string | null {
   return null;
 }
 
-function getYouTubeEmbedUrl(url: string): string {
-  const videoId = getYouTubeVideoId(url);
-  if (videoId) return `https://www.youtube.com/embed/${videoId}`;
-  return url;
-}
-
 function getYouTubeWatchUrl(url: string): string {
   const videoId = getYouTubeVideoId(url);
   if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
