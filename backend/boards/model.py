@@ -35,6 +35,11 @@ class BoardItem(BaseModel):
     added_at: datetime
 
 
+class BoardUpdateRequest(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
 class BoardItemAddRequest(BaseModel):
     ad_id: str
 

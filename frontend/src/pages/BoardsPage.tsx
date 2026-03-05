@@ -39,7 +39,7 @@ export function BoardsPage() {
       {boards && boards.items.length > 0 ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {boards.items.map((board) => (
-            <BoardCard key={board.id} board={board} onDeleted={fetchBoards} />
+            <BoardCard key={board.id} board={board} onDeleted={fetchBoards} onUpdated={fetchBoards} />
           ))}
 
           {/* Create new board card */}

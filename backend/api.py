@@ -33,9 +33,10 @@ from ads.extract_script import extract_script, get_script
 from boards.create import create_board
 from boards.list import list_boards
 from boards.detail import get_board_detail
+from boards.update import update_board
 from boards.add_item import add_board_item
 from boards.remove_item import remove_board_item
-from boards.model import BoardCreateRequest, BoardItemAddRequest
+from boards.model import BoardCreateRequest, BoardUpdateRequest, BoardItemAddRequest
 
 from users.profile import get_profile
 from users.update import update_profile
@@ -212,6 +213,15 @@ async def api_get_board_detail(
     limit: int = Query(default=20, ge=1, le=50),
 ):
     return get_board_detail(board_id, user["user_id"], page, limit)
+
+
+@app.put("/boards/{board_id}")
+async def api_update_board(
+    request: BoardUpdateRequest,
+    board_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    return update_board(board_id, user["user_id"], request.name, request.description)
 
 
 @app.post("/boards/{board_id}/items", status_code=201)

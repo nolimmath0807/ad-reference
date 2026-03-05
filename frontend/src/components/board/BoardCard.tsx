@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { MoreHorizontal, Pencil, Trash2, FolderOpen } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, FolderOpen, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,18 +23,33 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
-import type { Board } from "@/types/board";
+import type { Board, BoardUpdateRequest } from "@/types/board";
 
 interface BoardCardProps {
   board: Board;
   onDeleted: () => void;
+  onUpdated: () => void;
 }
 
-export function BoardCard({ board, onDeleted }: BoardCardProps) {
+export function BoardCard({ board, onDeleted, onUpdated }: BoardCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editForm, setEditForm] = useState<BoardUpdateRequest>({
+    name: board.name,
+    description: board.description || "",
+  });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -41,6 +58,27 @@ export function BoardCard({ board, onDeleted }: BoardCardProps) {
     setIsDeleting(false);
     setShowDeleteDialog(false);
     onDeleted();
+  };
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdating(true);
+    await api.put<Board>(`/boards/${board.id}`, {
+      name: editForm.name,
+      description: editForm.description || undefined,
+    });
+    toast.success("Board updated successfully.");
+    setIsUpdating(false);
+    setShowEditDialog(false);
+    onUpdated();
+  };
+
+  const openEditDialog = () => {
+    setEditForm({
+      name: board.name,
+      description: board.description || "",
+    });
+    setShowEditDialog(true);
   };
 
   const updatedAt = new Date(board.updated_at).toLocaleDateString("ko-KR", {
@@ -81,6 +119,7 @@ export function BoardCard({ board, onDeleted }: BoardCardProps) {
                   <DropdownMenuItem
                     onClick={(e) => {
                       e.preventDefault();
+                      openEditDialog();
                     }}
                   >
                     <Pencil />
@@ -133,6 +172,59 @@ export function BoardCard({ board, onDeleted }: BoardCardProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <form onSubmit={handleEdit}>
+            <DialogHeader>
+              <DialogTitle>Edit board</DialogTitle>
+              <DialogDescription>
+                Update the name or description of this board.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`edit-board-name-${board.id}`}>Name</Label>
+                <Input
+                  id={`edit-board-name-${board.id}`}
+                  placeholder="e.g. Campaign Inspiration"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <Label htmlFor={`edit-board-description-${board.id}`}>Description (optional)</Label>
+                <textarea
+                  id={`edit-board-description-${board.id}`}
+                  placeholder="What is this board about?"
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  rows={3}
+                  className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowEditDialog(false)}
+                disabled={isUpdating}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isUpdating || !editForm.name?.trim()}>
+                {isUpdating && <Loader2 className="animate-spin" />}
+                Save
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

@@ -15,6 +15,11 @@ export interface BoardCreateRequest {
   description?: string;
 }
 
+export interface BoardUpdateRequest {
+  name?: string;
+  description?: string;
+}
+
 export interface BoardItem {
   id: string;
   board_id: string;
