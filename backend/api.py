@@ -14,7 +14,7 @@ from pathlib import Path as FilePath
 from pydantic import BaseModel, Field
 from fastapi import FastAPI, Depends, Query, Path, Body, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 
@@ -29,6 +29,7 @@ from ads.detail import get_ad_detail
 from ads.save import save_ad
 from ads.model import AdSaveRequest
 from ads.extract_script import extract_script, get_script
+from ads.video_proxy import get_video_path, get_preview_url
 
 from boards.create import create_board
 from boards.list import list_boards
@@ -1263,6 +1264,28 @@ async def api_get_ad_script(
     if not result:
         return {"ad_id": ad_id, "script_text": None, "status": "not_found"}
     return result
+
+
+@app.get("/ads/{ad_id}/video")
+async def api_get_ad_video(
+    ad_id: str = Path(...),
+):
+    """광고 영상을 프록시로 제공한다.
+
+    YouTube 영상이면 yt-dlp로 다운로드 후 파일로 응답.
+    YouTube가 아니면 원본 preview_url로 리다이렉트.
+    """
+    video_path = get_video_path(ad_id)
+
+    if video_path:
+        return FileResponse(video_path, media_type="video/mp4")
+
+    # YouTube가 아닌 경우 원본 URL로 리다이렉트
+    preview_url = get_preview_url(ad_id)
+    if preview_url:
+        return RedirectResponse(url=preview_url)
+
+    raise HTTPException(status_code=404, detail="Video not found")
 
 
 # ──────────────────────────────────────────────

@@ -70,6 +70,33 @@ def extract_script(ad_id: str) -> dict:
         return {"ad_id": ad_id, "status": "failed", "error_message": str(e)}
 
 
+def _is_youtube_url(url: str) -> bool:
+    return any(host in url for host in ["youtube.com", "youtu.be"])
+
+
+def _download_youtube(url: str, output_path: str):
+    import yt_dlp
+
+    ydl_opts = {
+        "format": "worst[ext=mp4]/worst",
+        "outtmpl": output_path,
+        "quiet": True,
+        "no_warnings": True,
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    if not os.path.exists(output_path):
+        raise RuntimeError(f"yt-dlp failed to download: {url}")
+
+
+def _download_direct(url: str, output_path: str):
+    with httpx.stream("GET", url, timeout=60, follow_redirects=True) as resp:
+        resp.raise_for_status()
+        with open(output_path, "wb") as f:
+            for chunk in resp.iter_bytes(chunk_size=8192):
+                f.write(chunk)
+
+
 def _download_and_transcribe(video_url: str) -> str:
     """영상 다운로드 -> ffmpeg 오디오 추출 -> Whisper STT"""
 
@@ -77,12 +104,11 @@ def _download_and_transcribe(video_url: str) -> str:
         video_path = os.path.join(tmp_dir, "video.mp4")
         audio_path = os.path.join(tmp_dir, "audio.wav")
 
-        # 영상 다운로드
-        with httpx.stream("GET", video_url, timeout=60, follow_redirects=True) as resp:
-            resp.raise_for_status()
-            with open(video_path, "wb") as f:
-                for chunk in resp.iter_bytes(chunk_size=8192):
-                    f.write(chunk)
+        # YouTube URL이면 yt-dlp, 그 외면 httpx 직접 다운로드
+        if _is_youtube_url(video_url):
+            _download_youtube(video_url, video_path)
+        else:
+            _download_direct(video_url, video_path)
 
         # ffmpeg 오디오 추출
         result = subprocess.run(

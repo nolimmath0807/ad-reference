@@ -16,4 +16,5 @@ dependencies = [
     "boto3",
     "python-dateutil",
     "huggingface-hub",
+    "yt-dlp",
 ]
