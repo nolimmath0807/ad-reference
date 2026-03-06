@@ -267,6 +267,28 @@ def migrate():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_scripts_ad_id ON ad_scripts(ad_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_scripts_status ON ad_scripts(status)")
 
+    # Enable pgvector (vector type lives in public schema)
+    cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    cur.execute(f'SET search_path TO "{SCHEMA}", public')
+
+    # 16. ad_embeddings table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ad_embeddings (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            ad_id UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE UNIQUE,
+            image_embedding vector(384),
+            text_embedding vector(384),
+            combined_embedding vector(384),
+            model_name VARCHAR(100) DEFAULT 'sentence-transformers/all-MiniLM-L6-v2',
+            status VARCHAR(20) DEFAULT 'pending',
+            error_message TEXT,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_ad_id ON ad_embeddings(ad_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_status ON ad_embeddings(status)")
+
     conn.commit()
     cur.close()
     conn.close()

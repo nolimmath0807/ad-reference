@@ -17,4 +17,5 @@ dependencies = [
     "python-dateutil",
     "huggingface-hub",
     "yt-dlp",
+    "numpy",
 ]

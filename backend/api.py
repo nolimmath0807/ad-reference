@@ -30,6 +30,7 @@ from ads.save import save_ad
 from ads.model import AdSaveRequest
 from ads.extract_script import extract_script, get_script
 from ads.video_proxy import get_video_path, get_preview_url
+from ads.embedding import embed_ads_batch
 
 from boards.create import create_board
 from boards.list import list_boards
@@ -1385,6 +1386,39 @@ async def api_list_activity_logs(
 ):
     offset = (page - 1) * limit
     return list_activity_logs(event_type=event_type, limit=limit, offset=offset)
+
+
+# ──────────────────────────────────────────────
+# Embeddings (JWT required)
+# ──────────────────────────────────────────────
+
+@app.post("/embeddings/batch", status_code=202)
+async def api_batch_embeddings(
+    background_tasks: BackgroundTasks,
+    limit: int = Query(default=100, ge=1, le=1000),
+    user: dict = Depends(get_user),
+):
+    job_id = uuid.uuid4().hex[:12]
+    background_tasks.add_task(embed_ads_batch, limit)
+    return {"job_id": job_id, "status": "started", "limit": limit}
+
+
+@app.get("/embeddings/status")
+async def api_embedding_status(user: dict = Depends(get_user)):
+    with get_db() as (conn, cur):
+        cur.execute("""
+            SELECT
+                (SELECT COUNT(*) FROM ads) as total_ads,
+                (SELECT COUNT(*) FROM ad_embeddings WHERE status = 'completed') as embedded,
+                (SELECT COUNT(*) FROM ad_embeddings WHERE status = 'failed') as failed
+        """)
+        row = cur.fetchone()
+        return {
+            "total_ads": row[0],
+            "embedded": row[1],
+            "failed": row[2],
+            "pending": row[0] - row[1] - row[2],
+        }
 
 
 if __name__ == "__main__":

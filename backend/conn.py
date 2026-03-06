@@ -19,7 +19,7 @@ _pool = psycopg2.pool.ThreadedConnectionPool(
 def get_db_connection():
     conn = _pool.getconn()
     cur = conn.cursor()
-    cur.execute(f'SET search_path TO "{SCHEMA}"')
+    cur.execute(f'SET search_path TO "{SCHEMA}", public')
     cur.close()
     return conn
 

@@ -7,6 +7,7 @@ from fastapi import HTTPException
 
 from conn import get_db
 from ads.model import Ad, AdDetailResponse
+from ads.embedding import find_similar_ads as find_similar_by_vector
 
 
 AD_COLUMNS = """
@@ -58,21 +59,46 @@ def get_ad_detail(ad_id: str) -> dict:
 
         ad = _row_to_ad(row, col_names)
 
-        # Similar ads: same advertiser_name OR same (platform, format), exclude self, limit 6
-        cur.execute(
-            f"""
-            SELECT {AD_COLUMNS}
-            FROM ads
-            WHERE id != %s
-              AND (advertiser_name = %s OR (platform = %s AND format = %s))
-            ORDER BY created_at DESC
-            LIMIT 6
-            """,
-            (ad_id, ad.advertiser_name, ad.platform.value, ad.format.value),
-        )
-        col_names_similar = [desc[0] for desc in cur.description]
-        similar_rows = cur.fetchall()
-        similar_ads = [_row_to_ad(r, col_names_similar) for r in similar_rows]
+        # Similar ads: vector similarity first, fallback to rule-based
+        try:
+            vector_results = find_similar_by_vector(ad_id, limit=6)
+        except Exception:
+            vector_results = []
+
+        if vector_results:
+            similar_ads = [
+                Ad(
+                    id=r["id"],
+                    platform=r["platform"],
+                    format=r["format"],
+                    advertiser_name=r["advertiser_name"],
+                    thumbnail_url=r.get("thumbnail_url"),
+                    preview_url=r.get("preview_url"),
+                    media_type=r["media_type"],
+                    ad_copy=r.get("ad_copy"),
+                    cta_text=r.get("cta_text"),
+                    landing_page_url=r.get("landing_page_url"),
+                    tags=[],
+                    created_at=datetime.now(),
+                )
+                for r in vector_results
+            ]
+        else:
+            # Fallback: same advertiser_name OR same (platform, format), exclude self, limit 6
+            cur.execute(
+                f"""
+                SELECT {AD_COLUMNS}
+                FROM ads
+                WHERE id != %s
+                  AND (advertiser_name = %s OR (platform = %s AND format = %s))
+                ORDER BY created_at DESC
+                LIMIT 6
+                """,
+                (ad_id, ad.advertiser_name, ad.platform.value, ad.format.value),
+            )
+            col_names_similar = [desc[0] for desc in cur.description]
+            similar_rows = cur.fetchall()
+            similar_ads = [_row_to_ad(r, col_names_similar) for r in similar_rows]
 
     resp = AdDetailResponse(ad=ad, similar_ads=similar_ads)
     return resp.model_dump(mode="json")
