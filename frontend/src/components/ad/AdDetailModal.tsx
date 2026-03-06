@@ -10,6 +10,7 @@ import {
   Film,
   FileText,
   Play,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -112,6 +113,14 @@ function getImageUrl(url: string | null | undefined): string {
   return url;
 }
 
+function getDownloadFilename(ad: Ad): string {
+  const name = (ad.advertiser_name || "ad").replace(/[\\/:*?"<>|]/g, "_");
+  const date = ad.saved_at ? ad.saved_at.slice(0, 10).replace(/-/g, "") : "unknown";
+  const shortId = ad.id.slice(0, 4);
+  const ext = ad.media_type === "video" ? "mp4" : "jpg";
+  return `${name}_${date}_${shortId}.${ext}`;
+}
+
 export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   const [detail, setDetail] = useState<AdDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,6 +129,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   const [youtubeError, setYoutubeError] = useState(false);
   const [script, setScript] = useState<AdScriptResponse | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (open && ad) {
@@ -188,6 +198,45 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
     }
   };
 
+  const handleDownload = async () => {
+    if (!currentAd) return;
+    setDownloading(true);
+    try {
+      let downloadUrl: string;
+      if (currentAd.preview_url && isYouTubeUrl(currentAd.preview_url)) {
+        downloadUrl = `${API_BASE_URL}/ads/${currentAd.id}/video`;
+      } else if (currentAd.media_type === "video" && currentAd.preview_url) {
+        downloadUrl = currentAd.preview_url;
+      } else {
+        downloadUrl = getImageUrl(currentAd.thumbnail_url);
+      }
+
+      const response = await fetch(downloadUrl, { mode: "cors" });
+      if (!response.ok) throw new Error("Download failed");
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = getDownloadFilename(currentAd);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      try {
+        const directUrl =
+          currentAd.media_type === "video" && currentAd.preview_url
+            ? currentAd.preview_url
+            : getImageUrl(currentAd.thumbnail_url);
+        window.open(directUrl, "_blank");
+      } catch {
+        toast.error("다운로드에 실패했습니다.");
+      }
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!currentAd) return null;
 
   const platform = platformStyles[currentAd.platform];
@@ -206,8 +255,8 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
             {/* Main two-column layout */}
             <div className="flex flex-col md:flex-row">
               {/* Left: Media preview */}
-              <div className="flex max-h-[40vh] shrink-0 items-center justify-center overflow-hidden bg-muted/30 md:max-h-none md:sticky md:top-0 md:w-[55%] md:self-start">
-                <div className="flex min-h-[200px] w-full items-center justify-center md:min-h-[400px]">
+              <div className="flex max-h-[40vh] shrink-0 flex-col overflow-hidden bg-muted/30 md:max-h-none md:sticky md:top-0 md:w-[55%] md:self-start">
+                <div className="flex min-h-[200px] flex-1 w-full items-center justify-center md:min-h-[400px]">
                   {currentAd.format === "text" && currentAd.ad_copy ? (
                     <div className="flex min-h-[300px] w-full flex-col justify-center gap-4 rounded-lg border bg-background p-8">
                       <div className="flex items-center gap-2">
@@ -286,15 +335,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                           onError={() => setYoutubeError(true)}
                         />
                       )}
-                      <a
-                        href={getYouTubeWatchUrl(currentAd.preview_url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 self-end px-3 py-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        YouTube에서 보기
-                        <ExternalLink className="size-3" />
-                      </a>
                     </div>
                   ) : currentAd.media_type === "video" &&
                     currentAd.preview_url &&
@@ -315,6 +355,36 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     />
                   )}
                 </div>
+
+                {/* Media action bar */}
+                {(currentAd.preview_url || currentAd.thumbnail_url) && (
+                  <div className="flex items-center justify-between px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      disabled={downloading}
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                    >
+                      {downloading ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Download className="size-3" />
+                      )}
+                      다운로드
+                    </button>
+                    {currentAd.preview_url && isYouTubeUrl(currentAd.preview_url) && (
+                      <a
+                        href={getYouTubeWatchUrl(currentAd.preview_url)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        YouTube에서 보기
+                        <ExternalLink className="size-3" />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Right: Details */}
