@@ -9,7 +9,6 @@ import {
   ImageIcon,
   Film,
   FileText,
-  Play,
   Download,
 } from "lucide-react";
 import {
@@ -97,12 +96,6 @@ function getYouTubeWatchUrl(url: string): string {
   return url;
 }
 
-function getYouTubeThumbnailUrl(url: string): string {
-  const videoId = getYouTubeVideoId(url);
-  if (videoId) return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-  return "";
-}
-
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 function getImageUrl(url: string | null | undefined): string {
@@ -126,7 +119,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [mediaError, setMediaError] = useState(false);
-  const [youtubeError, setYoutubeError] = useState(false);
   const [script, setScript] = useState<AdScriptResponse | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -136,7 +128,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
       setDetail(null);
       setIsLoading(true);
       setMediaError(false);
-      setYoutubeError(false);
       api.get<AdDetailResponse>(`/ads/${ad.id}`).then((data) => {
         setDetail(data);
         setIsLoading(false);
@@ -303,39 +294,13 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     </div>
                   ) : currentAd.preview_url &&
                     isYouTubeUrl(currentAd.preview_url) ? (
-                    <div className="flex w-full flex-col">
-                      {youtubeError ? (
-                        <a
-                          href={getYouTubeWatchUrl(currentAd.preview_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="group relative flex aspect-video w-full items-center justify-center overflow-hidden bg-neutral-900"
-                        >
-                          <img
-                            src={getYouTubeThumbnailUrl(currentAd.preview_url)}
-                            alt={currentAd.advertiser_name}
-                            className="absolute inset-0 h-full w-full object-cover opacity-60 transition-opacity group-hover:opacity-80"
-                          />
-                          <div className="relative z-10 flex flex-col items-center gap-3">
-                            <div className="flex size-16 items-center justify-center rounded-full bg-red-600 shadow-lg transition-transform group-hover:scale-110">
-                              <Play className="size-7 fill-white text-white" />
-                            </div>
-                            <span className="rounded-md bg-black/60 px-4 py-2 text-sm font-medium text-white backdrop-blur-sm">
-                              YouTube에서 보기
-                            </span>
-                          </div>
-                        </a>
-                      ) : (
-                        <video
-                          src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
-                          className="aspect-video w-full max-h-[40vh] object-contain md:max-h-[70vh]"
-                          controls
-                          preload="metadata"
-                          poster={getImageUrl(currentAd.thumbnail_url)}
-                          onError={() => setYoutubeError(true)}
-                        />
-                      )}
-                    </div>
+                    <video
+                      src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
+                      className="aspect-video w-full max-h-[40vh] object-contain md:max-h-[70vh]"
+                      controls
+                      preload="metadata"
+                      poster={getImageUrl(currentAd.thumbnail_url)}
+                    />
                   ) : currentAd.media_type === "video" &&
                     currentAd.preview_url &&
                     isPlayableVideoUrl(currentAd.preview_url) ? (
@@ -591,7 +556,6 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     setDetail(null);
                     setIsLoading(true);
                     setMediaError(false);
-                    setYoutubeError(false);
                     api.get<AdDetailResponse>(`/ads/${newAd.id}`).then((data) => {
                       setDetail(data);
                       setIsLoading(false);
