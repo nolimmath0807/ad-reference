@@ -7,6 +7,7 @@ from typing import Optional
 
 from conn import get_db
 from ads.model import Ad, AdSearchResponse, Platform, Format
+from ads.embedding import search_ads_by_vector
 from platforms.meta import search_meta_ads
 from platforms.google import search_google_ads
 from platforms.tiktok import search_tiktok_ads
@@ -144,6 +145,69 @@ def _sort_clause(sort: str) -> str:
     return "created_at DESC"
 
 
+def _dict_to_ad(d: dict) -> Ad:
+    """벡터 검색 결과 dict -> Ad 변환."""
+    return Ad(
+        id=str(d["id"]),
+        platform=d["platform"],
+        format=d["format"],
+        advertiser_name=d["advertiser_name"],
+        advertiser_handle=d.get("advertiser_handle"),
+        advertiser_avatar_url=d.get("advertiser_avatar_url"),
+        thumbnail_url=d.get("thumbnail_url"),
+        preview_url=d.get("preview_url"),
+        media_type=d["media_type"],
+        ad_copy=d.get("ad_copy"),
+        cta_text=d.get("cta_text"),
+        likes=d.get("likes"),
+        comments=d.get("comments"),
+        shares=d.get("shares"),
+        start_date=d.get("start_date"),
+        end_date=d.get("end_date"),
+        tags=d.get("tags", []),
+        landing_page_url=d.get("landing_page_url"),
+        created_at=d["created_at"],
+        saved_at=d.get("saved_at"),
+    )
+
+
+def _filter_vector_results(
+    results: list[dict],
+    platform: str,
+    format: str,
+    date_from: Optional[str],
+    date_to: Optional[str],
+    industry: Optional[str],
+) -> list[dict]:
+    """벡터 검색 결과에 필터 조건 적용."""
+    filtered = []
+    for d in results:
+        if platform != "all" and d.get("platform") != platform:
+            continue
+        if format != "all" and d.get("format") != format:
+            continue
+        if format == "all" and d.get("format") == "text":
+            continue
+        if date_from and d.get("start_date") and str(d["start_date"]) < date_from:
+            continue
+        if date_to and d.get("end_date") and str(d["end_date"]) > date_to:
+            continue
+        if industry and industry not in (d.get("tags") or []):
+            continue
+        filtered.append(d)
+    return filtered
+
+
+def _rrf_merge(keyword_ids: list[str], vector_ids: list[str], k: int = 60) -> list[str]:
+    """Reciprocal Rank Fusion으로 두 결과 리스트 병합."""
+    scores = {}
+    for rank, aid in enumerate(keyword_ids):
+        scores[aid] = scores.get(aid, 0) + 1.0 / (k + rank + 1)
+    for rank, aid in enumerate(vector_ids):
+        scores[aid] = scores.get(aid, 0) + 1.0 / (k + rank + 1)
+    return sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+
+
 async def _fetch_from_platforms(
     keyword: str,
     platform: str,
@@ -188,7 +252,38 @@ async def search_ads(
     industry: Optional[str],
     page: int,
     limit: int,
+    search_mode: str = "keyword",
 ) -> dict:
+    # semantic 또는 hybrid이고 keyword가 있으면 벡터 검색 실행
+    vector_results = []
+    if keyword and search_mode in ("semantic", "hybrid"):
+        try:
+            vector_results = search_ads_by_vector(keyword, limit=limit * 3)
+        except Exception as e:
+            import logging
+            logging.getLogger("search").warning(f"Vector search failed: {e}")
+
+    # semantic-only 모드: 벡터 결과만 사용
+    if search_mode == "semantic" and keyword and vector_results:
+        filtered = _filter_vector_results(vector_results, platform, format, date_from, date_to, industry)
+        total = len(filtered)
+        offset = (page - 1) * limit
+        page_items = filtered[offset:offset + limit]
+
+        items = []
+        for d in page_items:
+            items.append(_dict_to_ad(d))
+
+        resp = AdSearchResponse(
+            items=items,
+            total=total,
+            page=page,
+            limit=limit,
+            has_next=(page * limit) < total,
+        )
+        return resp.model_dump(mode="json")
+
+    # keyword 또는 hybrid: 기존 키워드 검색 실행
     where, params = _build_where(keyword, platform, format, date_from, date_to, industry)
     order = _sort_clause(sort)
     offset = (page - 1) * limit
@@ -211,14 +306,42 @@ async def search_ads(
             ORDER BY {order}
             LIMIT %s OFFSET %s
             """,
-            params + [limit, offset],
+            params + [limit * 3 if search_mode == "hybrid" else limit, offset if search_mode != "hybrid" else 0],
         )
         col_names = [desc[0] for desc in cur.description]
         rows = cur.fetchall()
-        items = [_row_to_ad(r, col_names) for r in rows]
+        keyword_items = [_row_to_ad(r, col_names) for r in rows]
+
+        # hybrid 모드: RRF 병합
+        if search_mode == "hybrid" and keyword and vector_results:
+            keyword_ids = [ad.id for ad in keyword_items]
+            vector_ids = [str(d["id"]) for d in vector_results]
+            merged_ids = _rrf_merge(keyword_ids, vector_ids)
+
+            # merged_ids 순서대로 Ad 객체 구성
+            ad_map = {ad.id: ad for ad in keyword_items}
+            for d in vector_results:
+                aid = str(d["id"])
+                if aid not in ad_map:
+                    ad_map[aid] = _dict_to_ad(d)
+
+            merged_items = [ad_map[aid] for aid in merged_ids if aid in ad_map]
+            total = max(total, len(merged_items))
+            page_items = merged_items[offset:offset + limit]
+
+            resp = AdSearchResponse(
+                items=page_items,
+                total=total,
+                page=page,
+                limit=limit,
+                has_next=(page * limit) < total,
+            )
+            return resp.model_dump(mode="json")
+
+        items = keyword_items[:limit]
 
         # If DB results insufficient and keyword provided, fetch from platforms
-        if len(items) < limit and keyword and page == 1:
+        if len(items) < limit and keyword and page == 1 and search_mode == "keyword":
             needed = limit - len(items)
             platform_ads = await _fetch_from_platforms(keyword, platform, needed)
 
@@ -248,8 +371,9 @@ def main(
     industry: Optional[str],
     page: int,
     limit: int,
+    search_mode: str = "keyword",
 ) -> dict:
-    return asyncio.run(search_ads(keyword, platform, format, sort, date_from, date_to, industry, page, limit))
+    return asyncio.run(search_ads(keyword, platform, format, sort, date_from, date_to, industry, page, limit, search_mode))
 
 
 if __name__ == "__main__":
@@ -263,12 +387,13 @@ if __name__ == "__main__":
     parser.add_argument("--industry", default=None, help="Industry tag filter")
     parser.add_argument("--page", type=int, default=1, help="Page number")
     parser.add_argument("--limit", type=int, default=20, help="Items per page")
+    parser.add_argument("--search-mode", default="keyword", choices=["keyword", "semantic", "hybrid"])
     args = parser.parse_args()
 
     result = main(
         args.keyword, args.platform, args.format, args.sort,
         args.date_from, args.date_to, args.industry,
-        args.page, args.limit,
+        args.page, args.limit, args.search_mode,
     )
 
     output_dir = Path(__file__).parent / "output"

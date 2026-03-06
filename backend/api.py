@@ -166,8 +166,9 @@ async def api_search_ads(
     industry: Optional[str] = Query(default=None),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
+    search_mode: str = Query(default="keyword"),
 ):
-    return await search_ads(keyword, platform, format, sort, date_from, date_to, industry, page, limit)
+    return await search_ads(keyword, platform, format, sort, date_from, date_to, industry, page, limit, search_mode)
 
 
 @app.get("/ads/{ad_id}")

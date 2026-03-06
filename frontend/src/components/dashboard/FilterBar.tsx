@@ -64,6 +64,7 @@ export function FilterBar({
           <SelectItem value="recent">Recent</SelectItem>
           <SelectItem value="popular">Popular</SelectItem>
           <SelectItem value="engagement">Engagement</SelectItem>
+          <SelectItem value="relevance">Relevance</SelectItem>
         </SelectContent>
       </Select>
 

@@ -198,7 +198,7 @@ def migrate():
         INSERT INTO brands (id, brand_name, is_active, notes, created_at, updated_at)
         SELECT id, domain, is_active, notes, created_at, updated_at
         FROM monitored_domains
-        ON CONFLICT (brand_name) DO NOTHING
+        ON CONFLICT DO NOTHING
     """)
 
     # Step 2: Create brand_sources from monitored_domains
@@ -288,6 +288,13 @@ def migrate():
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_ad_id ON ad_embeddings(ad_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_status ON ad_embeddings(status)")
+
+    # HNSW index for vector similarity search
+    cur.execute("""
+        CREATE INDEX IF NOT EXISTS idx_ad_embeddings_combined_hnsw
+        ON ad_embeddings USING hnsw (combined_embedding vector_cosine_ops)
+        WITH (m = 16, ef_construction = 64)
+    """)
 
     conn.commit()
     cur.close()

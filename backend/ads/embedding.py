@@ -196,3 +196,38 @@ def embed_ads_batch(limit: int = 100) -> dict:
     }
     logger.info(f"Batch embedding complete: {summary}")
     return summary
+
+
+def search_ads_by_vector(query_text: str, limit: int = 20, min_similarity: float = 0.15) -> list[dict]:
+    """텍스트 쿼리 -> CLIP 텍스트 임베딩 -> 벡터 유사도 검색."""
+    text_emb = generate_text_embedding(query_text)
+    if text_emb is None:
+        return []
+
+    vec_str = _vector_to_pgvector(text_emb)
+
+    with get_db() as (conn, cur):
+        cur.execute("""
+            SELECT a.id, a.platform, a.format, a.advertiser_name, a.advertiser_handle,
+                   a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
+                   a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
+                   a.start_date, a.end_date, a.tags, a.landing_page_url,
+                   a.created_at, a.saved_at,
+                   1 - (e.combined_embedding <=> %s::vector) AS similarity
+            FROM ads a
+            JOIN ad_embeddings e ON a.id = e.ad_id
+            WHERE e.status = 'completed'
+              AND e.combined_embedding IS NOT NULL
+              AND a.thumbnail_url != ''
+              AND a.thumbnail_url NOT LIKE '%%html%%'
+            ORDER BY e.combined_embedding <=> %s::vector
+            LIMIT %s
+        """, (vec_str, vec_str, limit))
+
+        columns = [desc[0] for desc in cur.description]
+        results = []
+        for row in cur.fetchall():
+            d = dict(zip(columns, row))
+            if d.get("similarity", 0) >= min_similarity:
+                results.append(d)
+        return results

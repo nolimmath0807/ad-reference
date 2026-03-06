@@ -66,7 +66,10 @@ export function DashboardPage() {
   };
 
   const handleSearch = (keyword: string) => {
-    updateParams({ keyword: keyword || undefined });
+    updateParams({
+      keyword: keyword || undefined,
+      search_mode: keyword ? "hybrid" : undefined,
+    });
   };
 
   const handlePlatformChange = (platform: "all" | PlatformType) => {
@@ -78,7 +81,13 @@ export function DashboardPage() {
   };
 
   const handleSortChange = (sort: SortType) => {
-    updateParams({ sort });
+    if (sort === "relevance" && searchParams.keyword) {
+      updateParams({ sort, search_mode: "semantic" });
+    } else if (sort === "relevance") {
+      updateParams({ sort: "recent", search_mode: undefined });
+    } else {
+      updateParams({ sort, search_mode: searchParams.keyword ? "hybrid" : undefined });
+    }
   };
 
   const handleDateFromChange = (date: string) => {

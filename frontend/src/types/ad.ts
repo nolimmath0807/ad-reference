@@ -1,7 +1,7 @@
 export type PlatformType = "meta" | "google" | "tiktok";
 export type FormatType = "image" | "video" | "carousel" | "reels" | "text";
 export type MediaType = "image" | "video" | "text";
-export type SortType = "recent" | "popular" | "engagement";
+export type SortType = "recent" | "popular" | "engagement" | "relevance";
 
 export interface Ad {
   id: string;
@@ -36,6 +36,7 @@ export interface AdSearchParams {
   industry?: string;
   page?: number;
   limit?: number;
+  search_mode?: "keyword" | "semantic" | "hybrid";
 }
 
 export interface AdSearchResponse {
