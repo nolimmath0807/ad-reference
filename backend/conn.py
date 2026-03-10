@@ -11,16 +11,20 @@ SCHEMA = "ad_reference_dash"
 
 _pool = psycopg2.pool.ThreadedConnectionPool(
     minconn=2,
-    maxconn=10,
+    maxconn=20,
     dsn=os.environ["DATABASE_URL"],
 )
 
 
 def get_db_connection():
     conn = _pool.getconn()
-    cur = conn.cursor()
-    cur.execute(f'SET search_path TO "{SCHEMA}", public')
-    cur.close()
+    try:
+        cur = conn.cursor()
+        cur.execute(f'SET search_path TO "{SCHEMA}", public')
+        cur.close()
+    except Exception:
+        _pool.putconn(conn)
+        raise
     return conn
 
 
