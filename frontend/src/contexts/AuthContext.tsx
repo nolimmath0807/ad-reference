@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { api } from "@/lib/api-client";
 import type { User } from "@/types/user";
 import type { LoginRequest, RegisterRequest, TokenResponse } from "@/types/auth";
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem("access_token", tokens.access_token);
     localStorage.setItem("refresh_token", tokens.refresh_token);
     const me = await api.get<User>("/users/me");
-    setUser(me);
+    flushSync(() => setUser(me));
   };
 
   const register = async (data: RegisterRequest) => {
