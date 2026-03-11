@@ -72,7 +72,6 @@ class ApiClient {
           }
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
-          window.location.href = "/login";
           throw { status: 401, error: { message: "세션이 만료되었습니다." } };
         }
 
