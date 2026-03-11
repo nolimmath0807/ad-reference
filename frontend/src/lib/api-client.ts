@@ -52,7 +52,8 @@ class ApiClient {
       ...((options.headers as Record<string, string>) || {}),
     };
 
-    if (token) {
+    const isAuthEndpoint = path === "/auth/login" || path === "/auth/register";
+    if (token && !isAuthEndpoint) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 

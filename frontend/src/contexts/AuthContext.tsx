@@ -36,6 +36,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (data: LoginRequest) => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+
     const tokens = await api.post<TokenResponse>("/auth/login", data);
     localStorage.setItem("access_token", tokens.access_token);
     localStorage.setItem("refresh_token", tokens.refresh_token);

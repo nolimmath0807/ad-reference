@@ -25,7 +25,7 @@ ENV PYTHONPATH=.
 EXPOSE 8000
 
 # Healthcheck for Railway / Docker
-HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Run the FastAPI server
 CMD ["uv", "run", "api.py"]
