@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 # Install ffmpeg for audio extraction (ad script feature)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -23,6 +23,9 @@ COPY . .
 # Set environment
 ENV PYTHONPATH=.
 EXPOSE 8000
+
+# Healthcheck for Railway / Docker
+HEALTHCHECK --interval=30s --timeout=10s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the FastAPI server
 CMD ["uv", "run", "api.py"]

@@ -10,8 +10,8 @@ load_dotenv()
 SCHEMA = "ad_reference_dash"
 
 _pool = psycopg2.pool.ThreadedConnectionPool(
-    minconn=2,
-    maxconn=20,
+    minconn=int(os.getenv("DB_POOL_MIN", "2")),
+    maxconn=int(os.getenv("DB_POOL_MAX", "10")),
     dsn=os.environ["DATABASE_URL"],
 )
 

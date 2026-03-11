@@ -770,7 +770,8 @@ def _collect_ads_for_advertiser(
 
 
 def scrape_google_ads_by_keyword(
-    keyword: str, headless: bool = True, max_results: int = 12, max_advertisers: int = 3
+    keyword: str, headless: bool = True, max_results: int = 12, max_advertisers: int = 3,
+    browser=None,
 ) -> list[PlatformAd]:
     three_months_ago = _THREE_MONTHS_AGO.strftime("%Y-%m-%d")
     today = date.today().strftime("%Y-%m-%d")
@@ -782,8 +783,16 @@ def scrape_google_ads_by_keyword(
         f"&start_date={three_months_ago}&end_date={today}"
     )
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+    own_playwright = None
+    own_browser = None
+    context = None
+
+    try:
+        if browser is None:
+            own_playwright = sync_playwright().start()
+            own_browser = own_playwright.chromium.launch(headless=headless)
+            browser = own_browser
+
         context = browser.new_context(
             viewport={"width": 1920, "height": 1080},
             locale="ko-KR",
@@ -796,7 +805,6 @@ def scrape_google_ads_by_keyword(
         advertisers = _search_and_get_advertisers(page, keyword, base_url)
         if not advertisers:
             logger.warning(f"광고주 드롭다운 없음: keyword='{keyword}'")
-            browser.close()
             return []
 
         advertisers_to_visit = advertisers[:max_advertisers]
@@ -838,7 +846,16 @@ def scrape_google_ads_by_keyword(
             logger.info(f"광고주 '{adv['name']}' 완료: 이번 {len(ads)}건, 누적 {len(platform_ads)}건")
 
         logger.info(f"Google 스크래핑 완료: 총 {len(platform_ads)}건 (광고주 {len(advertisers_to_visit)}개 순회)")
-        browser.close()
+    finally:
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if own_browser:
+            own_browser.close()
+        if own_playwright:
+            own_playwright.stop()
 
     return platform_ads
 
@@ -849,6 +866,7 @@ def scrape_google_ads_by_domain(
     max_results: int | None = None,
     on_batch_callback: Callable[[list[PlatformAd]], None] | None = None,
     mode: str = "full",
+    browser=None,
 ) -> list[PlatformAd]:
     """도메인 기반 Google Ads Transparency 스크래핑.
     URL: https://adstransparency.google.com/?region=KR&domain={domain}
@@ -870,8 +888,16 @@ def scrape_google_ads_by_domain(
 
     base_url = f"https://adstransparency.google.com/?region=KR&domain={domain}"
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+    own_playwright = None
+    own_browser = None
+    context = None
+
+    try:
+        if browser is None:
+            own_playwright = sync_playwright().start()
+            own_browser = own_playwright.chromium.launch(headless=headless)
+            browser = own_browser
+
         context = browser.new_context(
             viewport={"width": 1920, "height": 1080},
             locale="ko-KR",
@@ -966,7 +992,6 @@ def scrape_google_ads_by_domain(
 
             if not ad_links:
                 logger.info("증분 수집: 신규 광고 없음, 스크래핑 종료")
-                browser.close()
                 return []
 
         # 5. 각 상세 페이지 방문하여 광고 데이터 추출
@@ -1118,7 +1143,16 @@ def scrape_google_ads_by_domain(
             batch_buffer = []
 
         logger.info(f"Google 도메인 스크래핑 완료: 총 {total_collected}건 (domain='{domain}')")
-        browser.close()
+    finally:
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if own_browser:
+            own_browser.close()
+        if own_playwright:
+            own_playwright.stop()
 
     # on_batch_callback이 있으면 이미 콜백으로 전달했으므로 빈 리스트 반환
     if on_batch_callback is not None:

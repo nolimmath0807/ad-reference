@@ -69,7 +69,7 @@ def get_active_brand_sources() -> list[dict]:
     ]
 
 
-def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
+def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSourceScrapeResult:
     """Dispatch scraping by platform and source_type."""
     start_time = time.monotonic()
     scrape_started_at = datetime.now()  # DB 비교용 (monotonic은 DB 비교 불가)
@@ -120,6 +120,7 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
             max_results=None,
             on_batch_callback=on_batch,
             mode="incremental" if mode == "incremental" else "full",
+            browser=browser,
         )
     elif platform == "meta" and source_type == "page_id":
         from platforms.meta_scraper import scrape_meta_ads_by_page_id, parse_meta_page_id
@@ -128,7 +129,7 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
         # full 모드에서는 항상 전체 스캔 (last_seen_at 갱신을 위해)
         if mode == "full":
             logger.info(f"[meta:page_id:{page_id}] full 모드: 전체 스캔")
-            ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=500)
+            ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=500, browser=browser)
         else:
             # incremental 모드: 기존 광고 발견 시 조기 중단
             existing_source_ids = set()
@@ -142,12 +143,13 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
             if not existing_source_ids:
                 # 첫 수집: 전체
                 logger.info(f"[meta:page_id:{page_id}] 첫 수집(전체)")
-                ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=500)
+                ads = scrape_meta_ads_by_page_id(page_id, headless=True, max_results=500, browser=browser)
             else:
                 logger.info(f"[meta:page_id:{page_id}] 증분 수집, 기존 광고 {len(existing_source_ids)}건")
                 ads = scrape_meta_ads_by_page_id(
                     page_id, headless=True, max_results=500,
                     existing_source_ids=existing_source_ids,
+                    browser=browser,
                 )
 
         if ads:
@@ -158,7 +160,7 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
         # full 모드에서는 항상 전체 스캔 (last_seen_at 갱신을 위해)
         if mode == "full":
             logger.info(f"[meta:keyword:{source_value}] full 모드: 전체 스캔")
-            ads = scrape_meta_ads(source_value, headless=True, max_results=500)
+            ads = scrape_meta_ads(source_value, headless=True, max_results=500, browser=browser)
         else:
             # incremental 모드: 기존 광고 발견 시 조기 중단
             existing_source_ids = set()
@@ -171,12 +173,13 @@ def scrape_source(source: dict, mode: str = "full") -> BrandSourceScrapeResult:
 
             if not existing_source_ids:
                 logger.info(f"[meta:keyword:{source_value}] 첫 수집(전체)")
-                ads = scrape_meta_ads(source_value, headless=True, max_results=500)
+                ads = scrape_meta_ads(source_value, headless=True, max_results=500, browser=browser)
             else:
                 logger.info(f"[meta:keyword:{source_value}] 증분 수집, 기존 광고 {len(existing_source_ids)}건")
                 ads = scrape_meta_ads(
                     source_value, headless=True, max_results=500,
                     existing_source_ids=existing_source_ids,
+                    browser=browser,
                 )
 
         if ads:
@@ -279,7 +282,7 @@ def update_batch_run(run_id: str, **kwargs):
         )
 
 
-def scrape_domain_fully(domain: str) -> DomainScrapeResult:
+def scrape_domain_fully(domain: str, browser=None) -> DomainScrapeResult:
     """단일 도메인 전체 스크래핑.
     - scrape_google_ads_by_domain 호출
     - on_batch_callback으로 50건마다 upsert_ads_batch() 호출하여 DB 저장
@@ -307,6 +310,7 @@ def scrape_domain_fully(domain: str) -> DomainScrapeResult:
         headless=True,
         max_results=None,
         on_batch_callback=on_batch,
+        browser=browser,
     )
 
     result.duration_seconds = round(time.monotonic() - start_time, 1)
@@ -318,7 +322,7 @@ def scrape_domain_fully(domain: str) -> DomainScrapeResult:
     return result
 
 
-def scrape_domain_incremental(domain: str) -> DomainScrapeResult:
+def scrape_domain_incremental(domain: str, browser=None) -> DomainScrapeResult:
     """단일 도메인 증분 스크래핑 - 새로운 creative만 상세 페이지 방문."""
     start_time = time.monotonic()
     result = DomainScrapeResult(domain=domain)
@@ -342,6 +346,7 @@ def scrape_domain_incremental(domain: str) -> DomainScrapeResult:
         max_results=None,
         on_batch_callback=on_batch,
         mode="incremental",
+        browser=browser,
     )
 
     result.duration_seconds = round(time.monotonic() - start_time, 1)
@@ -355,6 +360,8 @@ def scrape_domain_incremental(domain: str) -> DomainScrapeResult:
 
 def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) -> dict:
     """Brand sources 기반 배치 수집 실행."""
+    from playwright.sync_api import sync_playwright
+
     total_scraped = 0
     total_new = 0
     total_updated = 0
@@ -370,42 +377,61 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
     for brand_name, sources in brands_seen.items():
         logger.info(f"  [{brand_name}] {len(sources)}개 소스: {[s['platform']+':'+s['source_value'] for s in sources]}")
 
-    for idx, src in enumerate(brand_sources):
-        label = f"{src['brand_name']}:{src['platform']}:{src['source_value']}"
-        logger.info(f"=== [{idx + 1}/{len(brand_sources)}] 소스: {label} ===")
+    pw = sync_playwright().start()
+    browser = pw.chromium.launch(headless=True)
+    logger.info("공유 브라우저 시작")
 
-        try:
-            result = scrape_source(src, mode=mode)
-            domain_results[label] = result.model_dump(mode="json")
-            total_scraped += result.ads_scraped
-            total_new += result.ads_new
-            total_updated += result.ads_updated
-        except Exception as e:
-            error_msg = f"[{label}] {type(e).__name__}: {e}"
-            logger.error(error_msg)
-            errors.append(error_msg)
-            log_activity(
-                event_type="collection",
-                event_subtype="batch_failed",
-                title=f"Scrape failed: {label}",
-                message=str(e),
+    try:
+        for idx, src in enumerate(brand_sources):
+            label = f"{src['brand_name']}:{src['platform']}:{src['source_value']}"
+            logger.info(f"=== [{idx + 1}/{len(brand_sources)}] 소스: {label} ===")
+
+            try:
+                result = scrape_source(src, mode=mode, browser=browser)
+                domain_results[label] = result.model_dump(mode="json")
+                total_scraped += result.ads_scraped
+                total_new += result.ads_new
+                total_updated += result.ads_updated
+            except Exception as e:
+                error_msg = f"[{label}] {type(e).__name__}: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                log_activity(
+                    event_type="collection",
+                    event_subtype="batch_failed",
+                    title=f"Scrape failed: {label}",
+                    message=str(e),
+                )
+                domain_results[label] = BrandSourceScrapeResult(
+                    source_id=src["source_id"],
+                    platform=src["platform"],
+                    source_type=src["source_type"],
+                    source_value=src["source_value"],
+                    error=str(e),
+                ).model_dump(mode="json")
+                # 에러 발생 시 브라우저 상태가 불안정할 수 있으므로 재시작
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+                browser = pw.chromium.launch(headless=True)
+                logger.info("에러 후 브라우저 재시작")
+
+            update_batch_run(
+                run_id,
+                total_ads_scraped=total_scraped,
+                total_ads_new=total_new,
+                total_ads_updated=total_updated,
+                domain_results=domain_results,
+                errors=errors,
             )
-            domain_results[label] = BrandSourceScrapeResult(
-                source_id=src["source_id"],
-                platform=src["platform"],
-                source_type=src["source_type"],
-                source_value=src["source_value"],
-                error=str(e),
-            ).model_dump(mode="json")
-
-        update_batch_run(
-            run_id,
-            total_ads_scraped=total_scraped,
-            total_ads_new=total_new,
-            total_ads_updated=total_updated,
-            domain_results=domain_results,
-            errors=errors,
-        )
+    finally:
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()
+        logger.info("공유 브라우저 종료")
 
     return {
         "total_scraped": total_scraped,
@@ -418,46 +444,67 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
 
 def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode: str) -> dict:
     """Legacy monitored_domains 기반 배치 수집 실행."""
+    from playwright.sync_api import sync_playwright
+
     total_scraped = 0
     total_new = 0
     total_updated = 0
     domain_results = {}
     errors = []
 
-    for idx, d in enumerate(domains):
-        logger.info(f"=== [{idx + 1}/{len(domains)}] 도메인: {d.domain} ===")
+    pw = sync_playwright().start()
+    browser = pw.chromium.launch(headless=True)
+    logger.info("공유 브라우저 시작 (legacy)")
 
-        try:
-            if mode == "incremental":
-                result = scrape_domain_incremental(d.domain)
-            else:
-                result = scrape_domain_fully(d.domain)
-            domain_results[d.domain] = result.model_dump(mode="json")
-            total_scraped += result.ads_scraped
-            total_new += result.ads_new
-            total_updated += result.ads_updated
-        except Exception as e:
-            error_msg = f"[{d.domain}] {type(e).__name__}: {e}"
-            logger.error(error_msg)
-            errors.append(error_msg)
-            log_activity(
-                event_type="collection",
-                event_subtype="batch_failed",
-                title=f"Scrape failed: {d.domain}",
-                message=str(e),
+    try:
+        for idx, d in enumerate(domains):
+            logger.info(f"=== [{idx + 1}/{len(domains)}] 도메인: {d.domain} ===")
+
+            try:
+                if mode == "incremental":
+                    result = scrape_domain_incremental(d.domain, browser=browser)
+                else:
+                    result = scrape_domain_fully(d.domain, browser=browser)
+                domain_results[d.domain] = result.model_dump(mode="json")
+                total_scraped += result.ads_scraped
+                total_new += result.ads_new
+                total_updated += result.ads_updated
+            except Exception as e:
+                error_msg = f"[{d.domain}] {type(e).__name__}: {e}"
+                logger.error(error_msg)
+                errors.append(error_msg)
+                log_activity(
+                    event_type="collection",
+                    event_subtype="batch_failed",
+                    title=f"Scrape failed: {d.domain}",
+                    message=str(e),
+                )
+                domain_results[d.domain] = DomainScrapeResult(
+                    domain=d.domain, error=str(e)
+                ).model_dump(mode="json")
+                # 에러 발생 시 브라우저 상태가 불안정할 수 있으므로 재시작
+                try:
+                    browser.close()
+                except Exception:
+                    pass
+                browser = pw.chromium.launch(headless=True)
+                logger.info("에러 후 브라우저 재시작")
+
+            update_batch_run(
+                run_id,
+                total_ads_scraped=total_scraped,
+                total_ads_new=total_new,
+                total_ads_updated=total_updated,
+                domain_results=domain_results,
+                errors=errors,
             )
-            domain_results[d.domain] = DomainScrapeResult(
-                domain=d.domain, error=str(e)
-            ).model_dump(mode="json")
-
-        update_batch_run(
-            run_id,
-            total_ads_scraped=total_scraped,
-            total_ads_new=total_new,
-            total_ads_updated=total_updated,
-            domain_results=domain_results,
-            errors=errors,
-        )
+    finally:
+        try:
+            browser.close()
+        except Exception:
+            pass
+        pw.stop()
+        logger.info("공유 브라우저 종료 (legacy)")
 
     return {
         "total_scraped": total_scraped,

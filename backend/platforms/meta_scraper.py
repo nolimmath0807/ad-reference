@@ -264,17 +264,26 @@ def raw_to_platform_ad(raw: dict) -> PlatformAd:
     )
 
 
-def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
+def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None, browser=None) -> list[PlatformAd]:
     """Shared Playwright browser logic for scraping Meta Ad Library URLs.
 
     Args:
         existing_source_ids: 이미 수집된 광고 source_id 집합.
             제공되면 스크롤 중 기존 광고 발견 시 조기 중단.
+        browser: 외부에서 전달된 Playwright 브라우저 인스턴스. None이면 자체 생성.
     """
     logger.info(f"Meta Ad Library 스크래핑 시작: url={url[:120]}, max_results={max_results}, incremental={'yes' if existing_source_ids else 'no'}")
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=headless)
+    own_playwright = None
+    own_browser = None
+    context = None
+
+    try:
+        if browser is None:
+            own_playwright = sync_playwright().start()
+            own_browser = own_playwright.chromium.launch(headless=headless)
+            browser = own_browser
+
         context = browser.new_context(
             viewport={"width": 1920, "height": 1080},
             locale="ko-KR",
@@ -339,13 +348,21 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, ex
         # Convert to PlatformAd
         platform_ads = [raw_to_platform_ad(ad) for ad in filtered_ads]
         logger.info(f"Meta 스크래핑 완료: {len(platform_ads)}건")
-
-        browser.close()
+    finally:
+        if context:
+            try:
+                context.close()
+            except Exception:
+                pass
+        if own_browser:
+            own_browser.close()
+        if own_playwright:
+            own_playwright.stop()
 
     return platform_ads
 
 
-def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
+def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None, browser=None) -> list[PlatformAd]:
     encoded_keyword = quote(keyword)
     today = date.today()
     three_months_ago = _THREE_MONTHS_AGO
@@ -356,10 +373,10 @@ def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500,
         f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
         f"&start_date[max]={today.strftime('%Y-%m-%d')}"
     )
-    return _scrape_meta_url(url, headless, max_results, existing_source_ids)
+    return _scrape_meta_url(url, headless, max_results, existing_source_ids, browser=browser)
 
 
-def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None) -> list[PlatformAd]:
+def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None, browser=None) -> list[PlatformAd]:
     today = date.today()
     three_months_ago = _THREE_MONTHS_AGO
     url = (
@@ -369,7 +386,7 @@ def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results:
         f"&start_date[min]={three_months_ago.strftime('%Y-%m-%d')}"
         f"&start_date[max]={today.strftime('%Y-%m-%d')}"
     )
-    return _scrape_meta_url(url, headless, max_results, existing_source_ids)
+    return _scrape_meta_url(url, headless, max_results, existing_source_ids, browser=browser)
 
 
 def parse_meta_page_id(input_value: str) -> str:

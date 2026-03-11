@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
-from platforms.batch_collector import run_daily_batch
+from platforms.batch_runner import start_batch_subprocess
 
 load_dotenv()
 
@@ -24,26 +24,20 @@ def _incremental_batch_job():
     """4시간마다 호출하는 증분 배치 작업"""
     logger.info("=== 스케줄된 증분 배치 시작 ===")
     try:
-        result = run_daily_batch(trigger_type="scheduled_incremental", mode="incremental")
-        logger.info(
-            f"증분 배치 완료: scraped={result.get('total_ads_scraped', 0)}, "
-            f"new={result.get('total_ads_new', 0)}"
-        )
+        job_id = start_batch_subprocess(mode="incremental", trigger_type="scheduled_incremental")
+        logger.info(f"증분 배치 subprocess 시작: job_id={job_id}")
     except Exception as e:
-        logger.error(f"증분 배치 실패: {type(e).__name__}: {e}")
+        logger.error(f"증분 배치 시작 실패: {type(e).__name__}: {e}")
 
 
 def _full_batch_job():
     """매일 새벽 전체 배치 작업"""
     logger.info("=== 스케줄된 전체 배치 시작 ===")
     try:
-        result = run_daily_batch(trigger_type="scheduled_full", mode="full")
-        logger.info(
-            f"전체 배치 완료: scraped={result.get('total_ads_scraped', 0)}, "
-            f"new={result.get('total_ads_new', 0)}"
-        )
+        job_id = start_batch_subprocess(mode="full", trigger_type="scheduled_full")
+        logger.info(f"전체 배치 subprocess 시작: job_id={job_id}")
     except Exception as e:
-        logger.error(f"전체 배치 실패: {type(e).__name__}: {e}")
+        logger.error(f"전체 배치 시작 실패: {type(e).__name__}: {e}")
 
 
 def start_scheduler(
@@ -100,12 +94,9 @@ def main(run_once: bool, daemon: bool, incremental_hours: int, full_hour: int, m
 
     if run_once:
         logger.info(f"=== 즉시 1회 실행 모드 (mode={mode}) ===")
-        result = run_daily_batch(trigger_type="manual", mode=mode)
-        logger.info(
-            f"완료: scraped={result.get('total_ads_scraped', 0)}, "
-            f"new={result.get('total_ads_new', 0)}"
-        )
-        return result
+        job_id = start_batch_subprocess(mode=mode, trigger_type="manual")
+        logger.info(f"배치 subprocess 시작: job_id={job_id}")
+        return {"job_id": job_id, "status": "started", "mode": mode}
 
     if daemon:
         logger.info("=== 데몬 모드 시작 ===")

@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+from contextlib import asynccontextmanager
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -45,7 +46,8 @@ from users.update import update_profile
 from users.model import UserUpdateRequest
 
 from platforms.model import PlatformStatus, PlatformType, Status
-from platforms.batch_collector import run_daily_batch
+from platforms.batch_runner import start_batch_subprocess, get_batch_process_status
+from platforms.scheduler import start_scheduler, stop_scheduler
 
 from activity.list import list_activity_logs
 
@@ -53,7 +55,15 @@ from conn import get_db
 
 from utils.auth_helper import get_current_user
 
-app = FastAPI(title="Ad Reference API", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app):
+    if os.getenv("BATCH_SCHEDULER_ENABLED", "").lower() in ("true", "1", "yes"):
+        start_scheduler()
+    yield
+    stop_scheduler()
+
+
+app = FastAPI(title="Ad Reference API", version="1.0.0", lifespan=lifespan)
 
 _default_origins = [
     "http://localhost:5173",
@@ -1299,30 +1309,16 @@ class BatchRunRequest(BaseModel):
     mode: str = "full"  # "full" or "incremental"
 
 
-_batch_jobs: dict[str, dict] = {}
-
-
-def _run_batch_job(job_id: str, domain: str | None, mode: str = "full"):
-    _batch_jobs[job_id]["status"] = "running"
-    result = run_daily_batch(trigger_type="manual", domain=domain or "", mode=mode)
-    _batch_jobs[job_id]["status"] = "completed"
-    _batch_jobs[job_id]["result"] = result
-
-
 @app.post("/batch/run", status_code=202)
 async def api_run_batch(
     request: BatchRunRequest,
-    background_tasks: BackgroundTasks,
     user: dict = Depends(get_user),
 ):
-    job_id = uuid.uuid4().hex[:12]
-    _batch_jobs[job_id] = {
-        "job_id": job_id,
-        "status": "started",
-        "domain": request.domain,
-        "mode": request.mode,
-    }
-    background_tasks.add_task(_run_batch_job, job_id, request.domain, request.mode)
+    job_id = start_batch_subprocess(
+        mode=request.mode,
+        trigger_type="manual",
+        domain=request.domain or "",
+    )
     return {"job_id": job_id, "status": "started", "domain": request.domain, "mode": request.mode}
 
 
@@ -1420,6 +1416,11 @@ async def api_embedding_status(user: dict = Depends(get_user)):
             "failed": row[2],
             "pending": row[0] - row[1] - row[2],
         }
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
