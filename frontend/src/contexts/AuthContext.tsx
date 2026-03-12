@@ -40,11 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
 
-    const tokens = await api.post<TokenResponse>("/auth/login", data);
-    localStorage.setItem("access_token", tokens.access_token);
-    localStorage.setItem("refresh_token", tokens.refresh_token);
-    const me = await api.get<User>("/users/me");
-    flushSync(() => setUser(me));
+    const result = await api.post<{ user: User; tokens: TokenResponse }>(
+      "/auth/login",
+      data,
+    );
+    localStorage.setItem("access_token", result.tokens.access_token);
+    localStorage.setItem("refresh_token", result.tokens.refresh_token);
+    flushSync(() => setUser(result.user));
   };
 
   const register = async (data: RegisterRequest) => {

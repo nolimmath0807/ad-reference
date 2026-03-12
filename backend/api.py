@@ -141,22 +141,22 @@ def _check_error(result: dict) -> dict:
 # ──────────────────────────────────────────────
 
 @app.post("/auth/register", status_code=201)
-async def api_register(request: RegisterRequest):
+def api_register(request: RegisterRequest):
     return register(request)
 
 
 @app.post("/auth/login")
-async def api_login(request: LoginRequest):
+def api_login(request: LoginRequest):
     return login(request)
 
 
 @app.post("/auth/logout")
-async def api_logout(request: LogoutRequest):
+def api_logout(request: LogoutRequest):
     return logout(request.refresh_token)
 
 
 @app.post("/auth/refresh")
-async def api_refresh(request: RefreshRequest):
+def api_refresh(request: RefreshRequest):
     return refresh_tokens(request.refresh_token)
 
 
@@ -260,13 +260,13 @@ async def api_remove_board_item(
 # ──────────────────────────────────────────────
 
 @app.get("/users/me")
-async def api_get_profile(user: dict = Depends(get_user)):
+def api_get_profile(user: dict = Depends(get_user)):
     result = get_profile(user["user_id"])
     return _check_error(result)
 
 
 @app.put("/users/me")
-async def api_update_profile(
+def api_update_profile(
     request: UserUpdateRequest,
     user: dict = Depends(get_user),
 ):

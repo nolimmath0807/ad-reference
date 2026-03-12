@@ -18,7 +18,7 @@ from utils.auth_helper import (
 def login(request: LoginRequest) -> dict:
     with get_db() as (conn, cur):
         cur.execute(
-            "SELECT id, email, password_hash FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, company, job_title, avatar_url, created_at, updated_at FROM users WHERE email = %s",
             (request.email,),
         )
         row = cur.fetchone()
@@ -48,12 +48,25 @@ def login(request: LoginRequest) -> dict:
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
 
-    return TokenResponse(
+    user = {
+        "id": user_id,
+        "email": row[1],
+        "name": row[3],
+        "company": row[4],
+        "job_title": row[5],
+        "avatar_url": row[6],
+        "created_at": row[7].isoformat(),
+        "updated_at": row[8].isoformat(),
+    }
+
+    tokens = TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="Bearer",
         expires_in=ACCESS_EXPIRE_MINUTES * 60,
     ).model_dump()
+
+    return {"user": user, "tokens": tokens}
 
 
 def main(email: str, password: str) -> dict:
