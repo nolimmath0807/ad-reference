@@ -269,6 +269,8 @@ def migrate():
 
     # Enable pgvector (vector type lives in public schema)
     cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Enable pg_trgm for ILIKE %keyword% search optimization
+    cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
     cur.execute(f'SET search_path TO "{SCHEMA}", public')
 
     # 16. ad_embeddings table
@@ -295,6 +297,34 @@ def migrate():
         ON ad_embeddings USING hnsw (combined_embedding vector_cosine_ops)
         WITH (m = 16, ef_construction = 64)
     """)
+
+    # Performance indexes: ILIKE search optimization (pg_trgm GIN)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_advertiser_trgm ON ads USING gin (advertiser_name gin_trgm_ops)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_ad_copy_trgm ON ads USING gin (ad_copy gin_trgm_ops)")
+
+    # Performance indexes: date range filters
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_start_date ON ads(start_date)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_end_date ON ads(end_date)")
+
+    # Performance indexes: array search (tags ANY)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_tags ON ads USING gin (tags)")
+
+    # Performance indexes: board detail page JOIN + ORDER BY
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_board_items_board_added ON board_items(board_id, added_at DESC)")
+
+    # Performance indexes: brand stats GROUP BY queries
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_brand_format ON ads(brand_id, format)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_brand_platform ON ads(brand_id, platform)")
+
+    # Performance indexes: timeline queries
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_saved_at ON ads(saved_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_last_seen ON ads(last_seen_at)")
+
+    # Performance indexes: batch_runs sorting
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_runs_started ON batch_runs(started_at DESC)")
+
+    # Performance indexes: vector search partial index (completed embeddings only)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_completed ON ad_embeddings(ad_id) WHERE status = 'completed' AND combined_embedding IS NOT NULL")
 
     conn.commit()
     cur.close()
