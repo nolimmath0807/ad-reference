@@ -1,5 +1,6 @@
 import argparse
 import json
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -46,8 +47,11 @@ def refresh_tokens(refresh_token: str) -> dict:
             }
         })
 
-    # 2. check blacklist
+    # 2~5. single DB transaction: blacklist check → user lookup → token issue → blacklist old
+    user_id = payload["sub"]
+
     with get_db() as (conn, cur):
+        # blacklist 확인
         cur.execute("SELECT 1 FROM token_blacklist WHERE token = %s", (refresh_token,))
         if cur.fetchone():
             raise HTTPException(status_code=401, detail={
@@ -58,9 +62,7 @@ def refresh_tokens(refresh_token: str) -> dict:
                 }
             })
 
-    # 3. get user info from DB (to include email in new access token)
-    user_id = payload["sub"]
-    with get_db() as (conn, cur):
+        # user email 조회
         cur.execute("SELECT email FROM users WHERE id = %s::uuid", (user_id,))
         row = cur.fetchone()
         if not row:
@@ -73,16 +75,19 @@ def refresh_tokens(refresh_token: str) -> dict:
             })
         email = row[0]
 
-    # 4. issue new tokens
-    new_access = create_access_token(user_id, email)
-    new_refresh = create_refresh_token(user_id)
+        # 새 토큰 발급
+        new_access = create_access_token(user_id, email)
+        new_refresh = create_refresh_token(user_id)
 
-    # 5. blacklist old refresh token (rotation)
-    with get_db() as (conn, cur):
+        # 이전 refresh token blacklist
         cur.execute(
             "INSERT INTO token_blacklist (token) VALUES (%s) ON CONFLICT DO NOTHING",
             (refresh_token,),
         )
+
+        # 만료된 blacklist 토큰 정리 (확률적 - 약 1/50 확률)
+        if random.random() < 0.02:
+            cur.execute("DELETE FROM token_blacklist WHERE created_at < NOW() - INTERVAL '7 days'")
 
     return TokenResponse(
         access_token=new_access,

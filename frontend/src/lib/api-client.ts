@@ -72,6 +72,8 @@ class ApiClient {
           }
           localStorage.removeItem("access_token");
           localStorage.removeItem("refresh_token");
+          localStorage.removeItem("user_info");
+          window.dispatchEvent(new Event("auth:session-expired"));
           throw { status: 401, error: { message: "세션이 만료되었습니다." } };
         }
 

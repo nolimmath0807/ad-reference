@@ -26,19 +26,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // localStorage에 저장된 user 정보가 있으면 API 호출 없이 복원
+    const savedUser = localStorage.getItem("user_info");
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+        setIsLoading(false);
+        return;
+      } catch {
+        localStorage.removeItem("user_info");
+      }
+    }
+
+    // user_info가 없는 경우에만 API 호출 (하위 호환)
     api
       .get<User>("/users/me")
-      .then(setUser)
+      .then((me) => {
+        localStorage.setItem("user_info", JSON.stringify(me));
+        setUser(me);
+      })
       .catch(() => {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
+        localStorage.removeItem("user_info");
       })
       .finally(() => setIsLoading(false));
+  }, []);
+
+  // 세션 만료 이벤트 리스너
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("user_info");
+      setUser(null);
+    };
+    window.addEventListener("auth:session-expired", handleSessionExpired);
+    return () => window.removeEventListener("auth:session-expired", handleSessionExpired);
   }, []);
 
   const login = async (data: LoginRequest) => {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_info");
 
     const result = await api.post<{ user: User; tokens: TokenResponse }>(
       "/auth/login",
@@ -46,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     localStorage.setItem("access_token", result.tokens.access_token);
     localStorage.setItem("refresh_token", result.tokens.refresh_token);
+    localStorage.setItem("user_info", JSON.stringify(result.user));
     flushSync(() => setUser(result.user));
   };
 
@@ -56,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     localStorage.setItem("access_token", result.tokens.access_token);
     localStorage.setItem("refresh_token", result.tokens.refresh_token);
+    localStorage.setItem("user_info", JSON.stringify(result.user));
     setUser(result.user);
   };
 
@@ -66,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
+    localStorage.removeItem("user_info");
     setUser(null);
   };
 

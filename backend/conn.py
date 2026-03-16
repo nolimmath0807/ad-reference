@@ -1,9 +1,13 @@
+import logging
 import os
+import time
 from contextlib import contextmanager
 
 import psycopg2
 import psycopg2.pool
 from dotenv import load_dotenv
+
+logger = logging.getLogger("conn")
 
 load_dotenv()
 
@@ -21,27 +25,38 @@ _pool = psycopg2.pool.ThreadedConnectionPool(
 
 
 def get_db_connection():
-    conn = _pool.getconn()
-    try:
-        if conn.closed:
-            _pool.putconn(conn, close=True)
-            conn = _pool.getconn()
-        cur = conn.cursor()
-        cur.execute(f'SET search_path TO "{SCHEMA}", public')
-        cur.close()
-    except (psycopg2.OperationalError, psycopg2.InterfaceError):
+    retries = 3
+    for attempt in range(retries):
         try:
-            _pool.putconn(conn, close=True)
+            conn = _pool.getconn()
+        except psycopg2.pool.PoolError:
+            if attempt < retries - 1:
+                logger.warning(f"Connection pool exhausted, retrying ({attempt + 1}/{retries})...")
+                time.sleep(0.1 * (attempt + 1))
+                continue
+            logger.error("Connection pool exhausted after all retries")
+            raise
+        try:
+            if conn.closed:
+                _pool.putconn(conn, close=True)
+                continue
+            cur = conn.cursor()
+            cur.execute(f'SET search_path TO "{SCHEMA}", public')
+            cur.close()
+            return conn
+        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+            try:
+                _pool.putconn(conn, close=True)
+            except Exception:
+                pass
+            if attempt < retries - 1:
+                logger.warning(f"Stale connection discarded, retrying ({attempt + 1}/{retries})...")
+                continue
+            raise
         except Exception:
-            pass
-        conn = _pool.getconn()
-        cur = conn.cursor()
-        cur.execute(f'SET search_path TO "{SCHEMA}", public')
-        cur.close()
-    except Exception:
-        _pool.putconn(conn)
-        raise
-    return conn
+            _pool.putconn(conn)
+            raise
+    raise psycopg2.pool.PoolError("Failed to get connection after retries")
 
 
 @contextmanager
