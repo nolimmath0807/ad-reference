@@ -27,8 +27,8 @@ def start_batch_subprocess(mode: str, trigger_type: str, domain: str = "") -> st
     proc = subprocess.Popen(
         cmd,
         cwd=_backend_dir,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     _batch_processes[job_id] = {

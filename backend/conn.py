@@ -15,7 +15,7 @@ SCHEMA = "ad_reference_dash"
 
 _pool = psycopg2.pool.ThreadedConnectionPool(
     minconn=int(os.getenv("DB_POOL_MIN", "2")),
-    maxconn=int(os.getenv("DB_POOL_MAX", "10")),
+    maxconn=int(os.getenv("DB_POOL_MAX", "20")),
     dsn=os.environ["DATABASE_URL"],
     keepalives=1,
     keepalives_idle=30,
@@ -25,14 +25,14 @@ _pool = psycopg2.pool.ThreadedConnectionPool(
 
 
 def get_db_connection():
-    retries = 3
+    retries = 5
     for attempt in range(retries):
         try:
             conn = _pool.getconn()
         except psycopg2.pool.PoolError:
             if attempt < retries - 1:
                 logger.warning(f"Connection pool exhausted, retrying ({attempt + 1}/{retries})...")
-                time.sleep(0.1 * (attempt + 1))
+                time.sleep(0.5 * (attempt + 1))
                 continue
             logger.error("Connection pool exhausted after all retries")
             raise
@@ -60,9 +60,11 @@ def get_db_connection():
 
 
 @contextmanager
-def get_db():
+def get_db(statement_timeout: int | None = None):
     conn = get_db_connection()
     cur = conn.cursor()
+    if statement_timeout is not None:
+        cur.execute(f"SET statement_timeout = {statement_timeout}")
     try:
         yield conn, cur
         conn.commit()

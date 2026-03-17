@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 import time
 import uuid
 from datetime import datetime
@@ -14,6 +15,8 @@ from utils.activity_log import log_activity
 from utils.daily_stats import record_daily_stats
 
 logger = logging.getLogger("batch_collector")
+
+BROWSER_RESTART_INTERVAL = int(os.getenv("BROWSER_RESTART_INTERVAL", "10"))
 
 
 def get_active_domains() -> list[MonitoredDomain]:
@@ -383,6 +386,16 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
 
     try:
         for idx, src in enumerate(brand_sources):
+            # 주기적 브라우저 재시작으로 메모리 누적 방지
+            if idx > 0 and idx % BROWSER_RESTART_INTERVAL == 0:
+                try:
+                    browser.close()
+                    browser = pw.chromium.launch(headless=True)
+                    logger.info(f"메모리 관리: 브라우저 재시작 ({idx}/{len(brand_sources)})")
+                except Exception as e:
+                    logger.warning(f"브라우저 재시작 실패, 새로 시작: {e}")
+                    browser = pw.chromium.launch(headless=True)
+
             label = f"{src['brand_name']}:{src['platform']}:{src['source_value']}"
             logger.info(f"=== [{idx + 1}/{len(brand_sources)}] 소스: {label} ===")
 
@@ -458,6 +471,16 @@ def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode:
 
     try:
         for idx, d in enumerate(domains):
+            # 주기적 브라우저 재시작으로 메모리 누적 방지
+            if idx > 0 and idx % BROWSER_RESTART_INTERVAL == 0:
+                try:
+                    browser.close()
+                    browser = pw.chromium.launch(headless=True)
+                    logger.info(f"메모리 관리: 브라우저 재시작 ({idx}/{len(domains)})")
+                except Exception as e:
+                    logger.warning(f"브라우저 재시작 실패, 새로 시작: {e}")
+                    browser = pw.chromium.launch(headless=True)
+
             logger.info(f"=== [{idx + 1}/{len(domains)}] 도메인: {d.domain} ===")
 
             try:

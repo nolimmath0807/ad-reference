@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -56,12 +57,20 @@ from conn import get_db
 
 from utils.auth_helper import get_current_user
 
+logger = logging.getLogger("api")
+
 @asynccontextmanager
 async def lifespan(app):
-    if os.getenv("BATCH_SCHEDULER_ENABLED", "").lower() in ("true", "1", "yes"):
-        start_scheduler()
+    try:
+        if os.getenv("BATCH_SCHEDULER_ENABLED", "").lower() in ("true", "1", "yes"):
+            start_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
     yield
-    stop_scheduler()
+    try:
+        stop_scheduler()
+    except Exception as e:
+        logger.error(f"Failed to stop scheduler: {e}")
 
 
 app = FastAPI(title="Ad Reference API", version="1.0.0", lifespan=lifespan)

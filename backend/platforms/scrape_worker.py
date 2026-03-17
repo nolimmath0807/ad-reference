@@ -114,6 +114,9 @@ def _save_ads_to_db(ads: list[PlatformAd]) -> int:
     return saved
 
 
+UPSERT_CHUNK_SIZE = 50
+
+
 def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict:
     """광고를 DB에 UPSERT하고 신규/업데이트 건수를 반환.
 
@@ -129,59 +132,61 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
     new = 0
     updated = 0
 
-    with get_db() as (conn, cur):
-        for ad in ads:
-            effective_brand_id = brand_id or ad.brand_id
-            cur.execute(
-                """
-                INSERT INTO ads (
-                    source_id, platform, format, advertiser_name,
-                    advertiser_handle, thumbnail_url, preview_url,
-                    media_type, ad_copy, cta_text,
-                    start_date, end_date, tags,
-                    landing_page_url, raw_data, domain, creative_id,
-                    brand_id, saved_at, last_seen_at
-                ) VALUES (
-                    %s, %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s,
-                    %s, %s, %s, %s,
-                    %s, NOW(), NOW()
+    for i in range(0, len(ads), UPSERT_CHUNK_SIZE):
+        chunk = ads[i : i + UPSERT_CHUNK_SIZE]
+        with get_db() as (conn, cur):
+            for ad in chunk:
+                effective_brand_id = brand_id or ad.brand_id
+                cur.execute(
+                    """
+                    INSERT INTO ads (
+                        source_id, platform, format, advertiser_name,
+                        advertiser_handle, thumbnail_url, preview_url,
+                        media_type, ad_copy, cta_text,
+                        start_date, end_date, tags,
+                        landing_page_url, raw_data, domain, creative_id,
+                        brand_id, saved_at, last_seen_at
+                    ) VALUES (
+                        %s, %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s,
+                        %s, %s, %s, %s,
+                        %s, NOW(), NOW()
+                    )
+                    ON CONFLICT (source_id, platform) DO UPDATE SET
+                        advertiser_name = EXCLUDED.advertiser_name,
+                        thumbnail_url = EXCLUDED.thumbnail_url,
+                        preview_url = EXCLUDED.preview_url,
+                        ad_copy = EXCLUDED.ad_copy,
+                        cta_text = EXCLUDED.cta_text,
+                        end_date = EXCLUDED.end_date,
+                        raw_data = EXCLUDED.raw_data,
+                        landing_page_url = EXCLUDED.landing_page_url,
+                        domain = EXCLUDED.domain,
+                        creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
+                        brand_id = COALESCE(EXCLUDED.brand_id, ads.brand_id),
+                        updated_at = NOW(),
+                        last_seen_at = NOW()
+                    RETURNING (xmax = 0) AS is_new
+                    """,
+                    (
+                        ad.source_id, ad.platform.value, ad.format,
+                        ad.advertiser_name, ad.advertiser_handle,
+                        ad.thumbnail_url, ad.preview_url,
+                        ad.media_type, ad.ad_copy, ad.cta_text,
+                        ad.start_date, ad.end_date,
+                        ad.tags, ad.landing_page_url,
+                        json.dumps(ad.raw_data, ensure_ascii=False, default=str),
+                        ad.domain, ad.creative_id,
+                        effective_brand_id,
+                    ),
                 )
-                ON CONFLICT (source_id, platform) DO UPDATE SET
-                    advertiser_name = EXCLUDED.advertiser_name,
-                    thumbnail_url = EXCLUDED.thumbnail_url,
-                    preview_url = EXCLUDED.preview_url,
-                    ad_copy = EXCLUDED.ad_copy,
-                    cta_text = EXCLUDED.cta_text,
-                    end_date = EXCLUDED.end_date,
-                    raw_data = EXCLUDED.raw_data,
-                    landing_page_url = EXCLUDED.landing_page_url,
-                    domain = EXCLUDED.domain,
-                    creative_id = COALESCE(EXCLUDED.creative_id, ads.creative_id),
-                    brand_id = COALESCE(EXCLUDED.brand_id, ads.brand_id),
-                    updated_at = NOW(),
-                    last_seen_at = NOW()
-                RETURNING (xmax = 0) AS is_new
-                """,
-                (
-                    ad.source_id, ad.platform.value, ad.format,
-                    ad.advertiser_name, ad.advertiser_handle,
-                    ad.thumbnail_url, ad.preview_url,
-                    ad.media_type, ad.ad_copy, ad.cta_text,
-                    ad.start_date, ad.end_date,
-                    ad.tags, ad.landing_page_url,
-                    json.dumps(ad.raw_data, ensure_ascii=False, default=str),
-                    ad.domain, ad.creative_id,
-                    effective_brand_id,
-                ),
-            )
-            is_new = cur.fetchone()[0]
-            if is_new:
-                new += 1
-            else:
-                updated += 1
+                is_new = cur.fetchone()[0]
+                if is_new:
+                    new += 1
+                else:
+                    updated += 1
 
     total = new + updated
     logger.info(f"UPSERT 완료: new={new}, updated={updated}, total={total}")
