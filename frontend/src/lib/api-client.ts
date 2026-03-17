@@ -59,13 +59,32 @@ class ApiClient {
 
     startLoading();
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
-        ...options,
-        headers,
-      });
+      let response: Response;
+      let lastError: unknown;
+      const maxRetries = 3;
 
-      if (!response.ok) {
-        if (response.status === 401 && !isRetry && !path.startsWith("/auth/")) {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          response = await fetch(`${this.baseUrl}${path}`, {
+            ...options,
+            headers,
+          });
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          if (attempt < maxRetries - 1) {
+            await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+          }
+        }
+      }
+
+      if (lastError) {
+        throw { status: 0, error: { message: "서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요." } };
+      }
+
+      if (!response!.ok) {
+        if (response!.status === 401 && !isRetry && !path.startsWith("/auth/")) {
           const refreshed = await this.handleTokenRefresh();
           if (refreshed) {
             return this.request<T>(path, options, true);
@@ -77,11 +96,11 @@ class ApiClient {
           throw { status: 401, error: { message: "세션이 만료되었습니다." } };
         }
 
-        const error = await response.json().catch(() => ({ error: { message: "Request failed" } }));
-        throw { status: response.status, ...error };
+        const error = await response!.json().catch(() => ({ error: { message: "Request failed" } }));
+        throw { status: response!.status, ...error };
       }
 
-      return response.json();
+      return response!.json();
     } finally {
       stopLoading();
     }

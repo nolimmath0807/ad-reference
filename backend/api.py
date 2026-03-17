@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
+from starlette.requests import Request as StarletteRequest
 
 from auth.login import login
 from auth.register import register
@@ -84,6 +85,17 @@ app.add_middleware(
 FilePath("static/screenshots").mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: StarletteRequest, exc: Exception):
+    import logging
+    logging.getLogger("api").error(f"Unhandled error: {type(exc).__name__}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": {"error": {"code": "INTERNAL_SERVER_ERROR", "message": "서버 오류가 발생했습니다.", "details": None}}},
+    )
+
+
 security = HTTPBearer()
 
 
@@ -137,6 +149,11 @@ def _check_error(result: dict) -> dict:
 
 
 # ──────────────────────────────────────────────
+@app.get("/health")
+def api_health():
+    return {"status": "ok"}
+
+
 # Auth (public - no JWT required)
 # ──────────────────────────────────────────────
 
