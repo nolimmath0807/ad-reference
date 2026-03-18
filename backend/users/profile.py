@@ -11,7 +11,7 @@ def get_profile(user_id: str) -> dict:
     with get_db() as (conn, cur):
         cur.execute(
             """
-            SELECT id, email, name, company, job_title, avatar_url, created_at, updated_at
+            SELECT id, email, name, company, job_title, avatar_url, role, created_at, updated_at
             FROM users
             WHERE id = %s
             """,
@@ -29,8 +29,9 @@ def get_profile(user_id: str) -> dict:
         company=row[3],
         job_title=row[4],
         avatar_url=row[5],
-        created_at=row[6],
-        updated_at=row[7],
+        role=row[6],
+        created_at=row[7],
+        updated_at=row[8],
     )
     return user.model_dump(mode="json")
 

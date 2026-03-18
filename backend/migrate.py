@@ -326,6 +326,9 @@ def migrate():
     # Performance indexes: vector search partial index (completed embeddings only)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_embeddings_completed ON ad_embeddings(ad_id) WHERE status = 'completed' AND combined_embedding IS NOT NULL")
 
+    # 17. users table - add role column
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user'")
+
     conn.commit()
     cur.close()
     conn.close()

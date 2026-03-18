@@ -14,8 +14,13 @@ class User(BaseModel):
     company: Optional[str] = None
     job_title: Optional[str] = None
     avatar_url: Optional[str] = None
+    role: str = "user"
     created_at: datetime
     updated_at: datetime
+
+
+class AdminResetPasswordRequest(BaseModel):
+    user_id: str
 
 
 class UserUpdateRequest(BaseModel):

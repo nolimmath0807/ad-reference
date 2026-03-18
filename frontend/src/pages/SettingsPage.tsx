@@ -2,8 +2,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { ApiSettings } from "@/components/settings/ApiSettings";
 import { NotificationSettings } from "@/components/settings/NotificationSettings";
+import { UserManagement } from "@/components/settings/UserManagement";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function SettingsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8">
       <div className="mb-8">
@@ -18,6 +23,7 @@ export function SettingsPage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="api">API Settings</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          {isAdmin && <TabsTrigger value="users">유저 관리</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile" className="mt-6">
@@ -31,6 +37,12 @@ export function SettingsPage() {
         <TabsContent value="notifications" className="mt-6">
           <NotificationSettings />
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="users" className="mt-6">
+            <UserManagement />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

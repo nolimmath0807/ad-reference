@@ -45,7 +45,9 @@ from boards.model import BoardCreateRequest, BoardUpdateRequest, BoardItemAddReq
 
 from users.profile import get_profile
 from users.update import update_profile
-from users.model import UserUpdateRequest
+from users.list_users import list_all_users
+from users.reset_password import reset_user_password
+from users.model import UserUpdateRequest, AdminResetPasswordRequest
 
 from platforms.model import PlatformStatus, PlatformType, Status
 from platforms.batch_runner import start_batch_subprocess, get_batch_process_status
@@ -124,6 +126,19 @@ async def get_user(credentials: HTTPAuthorizationCredentials = Depends(security)
         )
     if not user:
         raise HTTPException(status_code=401, detail="인증이 필요합니다.")
+    return user
+
+
+def get_admin_user(user: dict = Depends(get_user)) -> dict:
+    """관리자 권한 체크 - DB에서 role 확인"""
+    with get_db() as (conn, cur):
+        cur.execute("SELECT role FROM users WHERE id = %s::uuid", (user["user_id"],))
+        row = cur.fetchone()
+        if not row or row[0] != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail={"error": {"code": "FORBIDDEN", "message": "관리자 권한이 필요합니다.", "details": None}},
+            )
     return user
 
 
@@ -1442,6 +1457,20 @@ async def api_embedding_status(user: dict = Depends(get_user)):
             "failed": row[2],
             "pending": row[0] - row[1] - row[2],
         }
+
+
+# ──────────────────────────────────────────────
+# Admin (JWT + admin role required)
+# ──────────────────────────────────────────────
+
+@app.get("/admin/users")
+def api_admin_list_users(user: dict = Depends(get_admin_user)):
+    return list_all_users()
+
+
+@app.post("/admin/reset-password")
+def api_admin_reset_password(body: AdminResetPasswordRequest, user: dict = Depends(get_admin_user)):
+    return reset_user_password(body.user_id)
 
 
 @app.get("/health")
