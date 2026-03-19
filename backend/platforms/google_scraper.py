@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 import urllib.parse
@@ -28,6 +29,8 @@ BLOCKED_DOMAINS = [
     "facebook.",
     "instagram.",
 ]
+
+CONTEXT_RESTART_INTERVAL = int(os.getenv("SCRAPER_CONTEXT_RESTART_INTERVAL", "20"))
 
 
 def is_blocked_url(url: str) -> bool:
@@ -1001,6 +1004,20 @@ def scrape_google_ads_by_domain(
         total_collected = 0
 
         for i, href in enumerate(ad_links):
+            # 주기적 context 재생성으로 메모리 누적 방지
+            if i > 0 and i % CONTEXT_RESTART_INTERVAL == 0:
+                try:
+                    context.close()
+                except Exception:
+                    pass
+                context = browser.new_context(
+                    viewport={"width": 1920, "height": 1080},
+                    locale="ko-KR",
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                )
+                page = context.new_page()
+                logger.info(f"  메모리 관리: context 재생성 ({i}/{len(ad_links)})")
+
             detail_url = f"https://adstransparency.google.com{href}"
             if "region=KR" not in detail_url:
                 detail_url += ("&" if "?" in detail_url else "?") + "region=KR"

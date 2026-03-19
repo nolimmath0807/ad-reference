@@ -556,6 +556,7 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
             logger.info("auto 모드: 평일 → incremental 수집")
 
     # 단일 도메인 모드 (--domain flag): legacy path
+    run_id = None
     if domain:
         domains = [MonitoredDomain(domain=domain)]
         logger.info(f"단일 도메인 모드: {domain}")
@@ -570,8 +571,6 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
             }
 
         run_id = create_batch_run(trigger_type=trigger_type)
-        update_batch_run(run_id, total_domains=1)
-        batch_result = _run_legacy_domains_batch(run_id, domains, mode)
     else:
         # Try brand sources first, fall back to legacy domains
         brand_sources = get_active_brand_sources()
@@ -593,8 +592,6 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
                 }
 
             run_id = create_batch_run(trigger_type=trigger_type)
-            update_batch_run(run_id, total_domains=total_items)
-            batch_result = _run_brand_sources_batch(run_id, brand_sources, mode)
         else:
             # Legacy: monitored_domains fallback
             domains = get_active_domains()
@@ -611,61 +608,83 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
                 }
 
             run_id = create_batch_run(trigger_type=trigger_type)
+
+    try:
+        if domain:
+            update_batch_run(run_id, total_domains=1)
+            batch_result = _run_legacy_domains_batch(run_id, domains, mode)
+        elif brand_sources:
+            update_batch_run(run_id, total_domains=total_items)
+            batch_result = _run_brand_sources_batch(run_id, brand_sources, mode)
+        else:
             update_batch_run(run_id, total_domains=total_items)
             batch_result = _run_legacy_domains_batch(run_id, domains, mode)
 
-    total_scraped = batch_result["total_scraped"]
-    total_new = batch_result["total_new"]
-    total_updated = batch_result["total_updated"]
-    domain_results = batch_result["domain_results"]
-    errors = batch_result["errors"]
+        total_scraped = batch_result["total_scraped"]
+        total_new = batch_result["total_new"]
+        total_updated = batch_result["total_updated"]
+        domain_results = batch_result["domain_results"]
+        errors = batch_result["errors"]
 
-    # 최종 상태 업데이트
-    final_status = BatchRunStatus.completed
-    update_batch_run(
-        run_id,
-        status=final_status,
-        finished_at=datetime.now(),
-        total_ads_scraped=total_scraped,
-        total_ads_new=total_new,
-        total_ads_updated=total_updated,
-        domain_results=domain_results,
-        errors=errors,
-    )
+        # 최종 상태 업데이트
+        final_status = BatchRunStatus.completed
+        update_batch_run(
+            run_id,
+            status=final_status,
+            finished_at=datetime.now(),
+            total_ads_scraped=total_scraped,
+            total_ads_new=total_new,
+            total_ads_updated=total_updated,
+            domain_results=domain_results,
+            errors=errors,
+        )
 
-    log_activity(
-        event_type="collection",
-        event_subtype="batch_completed",
-        title=f"Batch completed: {total_new} new, {total_updated} updated",
-        metadata={
+        log_activity(
+            event_type="collection",
+            event_subtype="batch_completed",
+            title=f"Batch completed: {total_new} new, {total_updated} updated",
+            metadata={
+                "batch_run_id": run_id,
+                "total_scraped": total_scraped,
+                "total_new": total_new,
+                "total_updated": total_updated,
+                "errors_count": len(errors),
+            },
+        )
+
+        summary = {
             "batch_run_id": run_id,
-            "total_scraped": total_scraped,
-            "total_new": total_new,
-            "total_updated": total_updated,
-            "errors_count": len(errors),
-        },
-    )
+            "trigger_type": trigger_type,
+            "mode": mode,
+            "status": final_status.value,
+            "total_sources": len(domain_results),
+            "total_ads_scraped": total_scraped,
+            "total_ads_new": total_new,
+            "total_ads_updated": total_updated,
+            "domain_results": domain_results,
+            "errors": errors,
+            "started_at": datetime.now().isoformat(),
+        }
 
-    summary = {
-        "batch_run_id": run_id,
-        "trigger_type": trigger_type,
-        "mode": mode,
-        "status": final_status.value,
-        "total_sources": len(domain_results),
-        "total_ads_scraped": total_scraped,
-        "total_ads_new": total_new,
-        "total_ads_updated": total_updated,
-        "domain_results": domain_results,
-        "errors": errors,
-        "started_at": datetime.now().isoformat(),
-    }
+        logger.info(
+            f"배치 완료: sources={len(domain_results)}, "
+            f"scraped={total_scraped}, new={total_new}, updated={total_updated}, "
+            f"errors={len(errors)}"
+        )
+        return summary
 
-    logger.info(
-        f"배치 완료: sources={len(domain_results)}, "
-        f"scraped={total_scraped}, new={total_new}, updated={total_updated}, "
-        f"errors={len(errors)}"
-    )
-    return summary
+    except Exception as e:
+        logger.error(f"배치 실행 중 크래시: {type(e).__name__}: {e}")
+        try:
+            update_batch_run(
+                run_id,
+                status="crashed",
+                finished_at=datetime.now(),
+                errors=[f"CRASH: {type(e).__name__}: {e}"],
+            )
+        except Exception:
+            logger.error("크래시 상태 업데이트 실패")
+        raise
 
 
 def main(trigger_type: str = "manual", domain: str = "", dry_run: bool = False, mode: str = "full") -> dict:
