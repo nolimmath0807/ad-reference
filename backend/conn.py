@@ -25,13 +25,16 @@ _pool = psycopg2.pool.ThreadedConnectionPool(
 
 
 def get_db_connection():
-    retries = 5
-    for attempt in range(retries):
+    max_retries = 5
+    stale_retries = 0
+    max_stale_retries = 20  # 풀의 모든 stale 커넥션을 순환할 수 있도록
+
+    for attempt in range(max_retries + max_stale_retries):
         try:
             conn = _pool.getconn()
         except psycopg2.pool.PoolError:
-            if attempt < retries - 1:
-                logger.warning(f"Connection pool exhausted, retrying ({attempt + 1}/{retries})...")
+            if attempt < max_retries - 1:
+                logger.warning(f"Connection pool exhausted, retrying ({attempt + 1}/{max_retries})...")
                 time.sleep(0.5 * (attempt + 1))
                 continue
             logger.error("Connection pool exhausted after all retries")
@@ -39,6 +42,8 @@ def get_db_connection():
         try:
             if conn.closed:
                 _pool.putconn(conn, close=True)
+                stale_retries += 1
+                logger.warning(f"Closed connection discarded ({stale_retries}/{max_stale_retries})")
                 continue
             cur = conn.cursor()
             cur.execute(f'SET search_path TO "{SCHEMA}", public')
@@ -49,10 +54,11 @@ def get_db_connection():
                 _pool.putconn(conn, close=True)
             except Exception:
                 pass
-            if attempt < retries - 1:
-                logger.warning(f"Stale connection discarded, retrying ({attempt + 1}/{retries})...")
-                continue
-            raise
+            stale_retries += 1
+            logger.warning(f"Stale connection discarded ({stale_retries}/{max_stale_retries})")
+            if stale_retries >= max_stale_retries:
+                raise
+            continue
         except Exception:
             _pool.putconn(conn)
             raise

@@ -929,9 +929,13 @@ def scrape_google_ads_by_domain(
         prev_count = 0
         scroll_attempts = 0
         no_new_count = 0  # 연속으로 새 광고가 없는 횟수
-        max_scroll_attempts = 100 if unlimited else 15
+        if mode == "incremental":
+            max_scroll_attempts = 10  # incremental은 최대 ~200개만
+            SCROLL_TIMEOUT_SECONDS = 60  # 1분 타임아웃
+        else:
+            max_scroll_attempts = 100 if unlimited else 15
+            SCROLL_TIMEOUT_SECONDS = 300  # 5분 안전 타임아웃
         scroll_start_time = time.monotonic()
-        SCROLL_TIMEOUT_SECONDS = 300  # 5분 안전 타임아웃
 
         while scroll_attempts < max_scroll_attempts:
             # 안전 타임아웃 체크
