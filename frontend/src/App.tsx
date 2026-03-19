@@ -12,6 +12,7 @@ import { BoardDetailPage } from "@/pages/BoardDetailPage";
 import { CompetitorsPage } from "@/pages/CompetitorsPage";
 import { CompetitorDetailPage } from "@/pages/CompetitorDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { AdDetailPage } from "@/pages/AdDetailPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 
 function App() {
@@ -95,6 +96,17 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <SettingsPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ads/:id"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <AdDetailPage />
                 </AppLayout>
               </ProtectedRoute>
             }
