@@ -23,6 +23,8 @@ _pool = psycopg2.pool.ThreadedConnectionPool(
     keepalives_count=5,
 )
 
+_CLOSE_ON_RETURN = os.getenv("DB_CLOSE_ON_RETURN", "").lower() in ("true", "1", "yes")
+
 
 def get_db_connection():
     max_retries = 5
@@ -74,11 +76,17 @@ def get_db(statement_timeout: int | None = None):
     try:
         yield conn, cur
         conn.commit()
-    except Exception:
+    except Exception as exc:
         try:
             conn.rollback()
         except Exception:
             pass
+        # DB 연결 에러 시 커넥션 강제 닫기 (pool에서 제거됨)
+        if isinstance(exc, (psycopg2.OperationalError, psycopg2.DatabaseError)):
+            try:
+                conn.close()
+            except Exception:
+                pass
         raise
     finally:
         try:
@@ -86,6 +94,6 @@ def get_db(statement_timeout: int | None = None):
         except Exception:
             pass
         try:
-            _pool.putconn(conn, close=conn.closed)
+            _pool.putconn(conn, close=conn.closed or _CLOSE_ON_RETURN)
         except Exception:
             pass

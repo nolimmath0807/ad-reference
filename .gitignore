@@ -27,6 +27,7 @@ dist/
 backend/platforms/output/
 backend/static/screenshots/
 backend/platforms/debug_*.py
+backend/logs/
 
 # Docker
 *.log

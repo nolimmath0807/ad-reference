@@ -11,7 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from dotenv import load_dotenv
 
-from platforms.batch_runner import start_batch_subprocess
+from platforms.batch_runner import has_running_batch, start_batch_subprocess
 
 load_dotenv()
 
@@ -22,6 +22,9 @@ _scheduler: BackgroundScheduler | None = None
 
 def _incremental_batch_job():
     """4시간마다 호출하는 증분 배치 작업"""
+    if has_running_batch():
+        logger.warning("이전 배치가 아직 실행 중, 이번 스케줄 스킵")
+        return
     logger.info("=== 스케줄된 증분 배치 시작 ===")
     try:
         job_id = start_batch_subprocess(mode="incremental", trigger_type="scheduled_incremental")
@@ -32,6 +35,9 @@ def _incremental_batch_job():
 
 def _full_batch_job():
     """매일 새벽 전체 배치 작업"""
+    if has_running_batch():
+        logger.warning("이전 배치가 아직 실행 중, 이번 스케줄 스킵")
+        return
     logger.info("=== 스케줄된 전체 배치 시작 ===")
     try:
         job_id = start_batch_subprocess(mode="full", trigger_type="scheduled_full")
@@ -58,6 +64,7 @@ def start_scheduler(
         id="incremental_batch_collection",
         name="Incremental Batch Ad Collection",
         replace_existing=True,
+        max_instances=1,
     )
 
     # Job 2: 전체 수집 (매일 새벽)
@@ -67,6 +74,7 @@ def start_scheduler(
         id="full_batch_collection",
         name="Full Batch Ad Collection (daily)",
         replace_existing=True,
+        max_instances=1,
     )
 
     _scheduler.start()

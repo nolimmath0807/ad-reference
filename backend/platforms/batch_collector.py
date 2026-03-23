@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import signal
 import time
 import uuid
 from datetime import datetime
@@ -17,6 +18,11 @@ from utils.daily_stats import record_daily_stats
 logger = logging.getLogger("batch_collector")
 
 BROWSER_RESTART_INTERVAL = int(os.getenv("BROWSER_RESTART_INTERVAL", "10"))
+BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT_SECONDS", "7200"))
+
+
+def _timeout_handler(signum, frame):
+    raise TimeoutError(f"배치 실행 {BATCH_TIMEOUT}초 초과")
 
 
 def get_active_domains() -> list[MonitoredDomain]:
@@ -430,14 +436,17 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
                 browser = pw.chromium.launch(headless=True)
                 logger.info("에러 후 브라우저 재시작")
 
-            update_batch_run(
-                run_id,
-                total_ads_scraped=total_scraped,
-                total_ads_new=total_new,
-                total_ads_updated=total_updated,
-                domain_results=domain_results,
-                errors=errors,
-            )
+            try:
+                update_batch_run(
+                    run_id,
+                    total_ads_scraped=total_scraped,
+                    total_ads_new=total_new,
+                    total_ads_updated=total_updated,
+                    domain_results=domain_results,
+                    errors=errors,
+                )
+            except Exception as update_err:
+                logger.warning(f"중간 상태 업데이트 실패 (계속 진행): {type(update_err).__name__}: {update_err}")
     finally:
         try:
             browser.close()
@@ -513,14 +522,17 @@ def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode:
                 browser = pw.chromium.launch(headless=True)
                 logger.info("에러 후 브라우저 재시작")
 
-            update_batch_run(
-                run_id,
-                total_ads_scraped=total_scraped,
-                total_ads_new=total_new,
-                total_ads_updated=total_updated,
-                domain_results=domain_results,
-                errors=errors,
-            )
+            try:
+                update_batch_run(
+                    run_id,
+                    total_ads_scraped=total_scraped,
+                    total_ads_new=total_new,
+                    total_ads_updated=total_updated,
+                    domain_results=domain_results,
+                    errors=errors,
+                )
+            except Exception as update_err:
+                logger.warning(f"중간 상태 업데이트 실패 (계속 진행): {type(update_err).__name__}: {update_err}")
     finally:
         try:
             browser.close()
@@ -609,6 +621,9 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
 
             run_id = create_batch_run(trigger_type=trigger_type)
 
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(BATCH_TIMEOUT)
+
     try:
         if domain:
             update_batch_run(run_id, total_domains=1)
@@ -628,16 +643,22 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
 
         # 최종 상태 업데이트
         final_status = BatchRunStatus.completed
-        update_batch_run(
-            run_id,
-            status=final_status,
-            finished_at=datetime.now(),
-            total_ads_scraped=total_scraped,
-            total_ads_new=total_new,
-            total_ads_updated=total_updated,
-            domain_results=domain_results,
-            errors=errors,
-        )
+        for _retry in range(3):
+            try:
+                update_batch_run(
+                    run_id,
+                    status=final_status,
+                    finished_at=datetime.now(),
+                    total_ads_scraped=total_scraped,
+                    total_ads_new=total_new,
+                    total_ads_updated=total_updated,
+                    domain_results=domain_results,
+                    errors=errors,
+                )
+                break
+            except Exception as update_err:
+                logger.warning(f"최종 상태 업데이트 재시도 ({_retry + 1}/3): {type(update_err).__name__}: {update_err}")
+                time.sleep(2)
 
         log_activity(
             event_type="collection",
@@ -671,9 +692,28 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
             f"scraped={total_scraped}, new={total_new}, updated={total_updated}, "
             f"errors={len(errors)}"
         )
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
         return summary
 
+    except TimeoutError as e:
+        logger.error(f"배치 타임아웃: {e}")
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+        try:
+            update_batch_run(
+                run_id,
+                status="timeout",
+                finished_at=datetime.now(),
+                errors=[f"TIMEOUT: {e}"],
+            )
+        except Exception:
+            logger.error("타임아웃 상태 업데이트 실패")
+        raise
+
     except Exception as e:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
         logger.error(f"배치 실행 중 크래시: {type(e).__name__}: {e}")
         try:
             update_batch_run(
