@@ -11,6 +11,7 @@ from pathlib import Path
 from conn import get_db
 from platforms.google_scraper import scrape_google_ads_by_domain
 from platforms.model import BatchRunStatus, BrandSourceScrapeResult, DomainScrapeResult, MonitoredDomain
+from platforms.s3 import is_s3_configured, upload_from_url
 from platforms.scrape_worker import upsert_ads_batch
 from utils.activity_log import log_activity
 from utils.daily_stats import record_daily_stats
@@ -23,6 +24,23 @@ BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT_SECONDS", "7200"))
 
 def _timeout_handler(signum, frame):
     raise TimeoutError(f"배치 실행 {BATCH_TIMEOUT}초 초과")
+
+
+def _upload_media(ad, s3_prefix: str) -> None:
+    """thumbnail_url과 preview_url을 S3에 업로드하고 ad 객체의 URL을 교체."""
+    if ad.thumbnail_url and "s3." not in ad.thumbnail_url and "amazonaws" not in ad.thumbnail_url:
+        s3_url = upload_from_url(ad.thumbnail_url, f"{s3_prefix}/thumb")
+        if s3_url:
+            ad.thumbnail_url = s3_url
+
+    if ad.preview_url and ad.preview_url != ad.thumbnail_url:
+        if "youtube.com" in ad.preview_url or "youtu.be" in ad.preview_url:
+            return
+        if "s3." in ad.preview_url and "amazonaws" in ad.preview_url:
+            return
+        s3_url = upload_from_url(ad.preview_url, f"{s3_prefix}/preview")
+        if s3_url:
+            ad.preview_url = s3_url
 
 
 def get_active_domains() -> list[MonitoredDomain]:
@@ -117,6 +135,16 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
             if not ad.domain:
                 ad.domain = source_value
             ad.brand_id = brand_id
+
+        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        if is_s3_configured():
+            s3_prefix = f"ads/{platform}/{source_value}"
+            for ad in ads:
+                try:
+                    _upload_media(ad, s3_prefix)
+                except Exception as e:
+                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+
         stats = upsert_ads_batch(ads, brand_id=brand_id)
         result.ads_scraped += len(ads)
         result.ads_new += stats["new"]
@@ -305,6 +333,16 @@ def scrape_domain_fully(domain: str, browser=None) -> DomainScrapeResult:
         for ad in ads:
             if not ad.domain:
                 ad.domain = domain
+
+        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        if is_s3_configured():
+            s3_prefix = f"ads/google/{domain}"
+            for ad in ads:
+                try:
+                    _upload_media(ad, s3_prefix)
+                except Exception as e:
+                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+
         stats = upsert_ads_batch(ads)
         result.ads_scraped += len(ads)
         result.ads_new += stats["new"]
@@ -340,6 +378,16 @@ def scrape_domain_incremental(domain: str, browser=None) -> DomainScrapeResult:
         for ad in ads:
             if not ad.domain:
                 ad.domain = domain
+
+        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        if is_s3_configured():
+            s3_prefix = f"ads/google/{domain}"
+            for ad in ads:
+                try:
+                    _upload_media(ad, s3_prefix)
+                except Exception as e:
+                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+
         stats = upsert_ads_batch(ads)
         result.ads_scraped += len(ads)
         result.ads_new += stats["new"]

@@ -195,7 +195,10 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
     try {
       let downloadUrl: string;
       if (currentAd.preview_url && isYouTubeUrl(currentAd.preview_url)) {
-        downloadUrl = `${API_BASE_URL}/ads/${currentAd.id}/video`;
+        // YouTube 영상은 직접 다운로드 불가 → 새 탭에서 YouTube 열기
+        window.open(getYouTubeWatchUrl(currentAd.preview_url), "_blank");
+        setDownloading(false);
+        return;
       } else if (currentAd.media_type === "video" && currentAd.preview_url) {
         downloadUrl = currentAd.preview_url;
       } else {
@@ -294,12 +297,11 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     </div>
                   ) : currentAd.preview_url &&
                     isYouTubeUrl(currentAd.preview_url) ? (
-                    <video
-                      src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
-                      className="aspect-video w-full max-h-[40vh] object-contain md:max-h-[70vh]"
-                      controls
-                      preload="metadata"
-                      poster={getImageUrl(currentAd.thumbnail_url)}
+                    <iframe
+                      src={`https://www.youtube.com/embed/${getYouTubeVideoId(currentAd.preview_url)}?rel=0`}
+                      className="aspect-video w-full max-h-[40vh] md:max-h-[70vh]"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
                     />
                   ) : currentAd.media_type === "video" &&
                     currentAd.preview_url &&
