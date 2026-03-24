@@ -16,19 +16,23 @@ import {
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import type { BoardItem } from "@/types/board";
+import type { Ad } from "@/types/ad";
 
 interface BoardItemGridProps {
   boardId: string;
   items: BoardItem[];
   onItemRemoved: () => void;
+  onAdClick: (ad: Ad) => void;
 }
 
 function InlineAdCard({
   item,
   onRemove,
+  onAdClick,
 }: {
   item: BoardItem;
   onRemove: () => void;
+  onAdClick: () => void;
 }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -50,7 +54,7 @@ function InlineAdCard({
 
   return (
     <>
-      <Card className="group overflow-hidden transition-shadow hover:shadow-md">
+      <Card className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-md" onClick={onAdClick}>
         <div className="relative h-40 bg-muted">
           <img
             src={ad.thumbnail_url}
@@ -70,7 +74,7 @@ function InlineAdCard({
                 className="shadow-sm"
                 asChild
               >
-                <a href={ad.landing_page_url} target="_blank" rel="noopener noreferrer">
+                <a href={ad.landing_page_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                   <ExternalLink className="size-3" />
                 </a>
               </Button>
@@ -79,7 +83,7 @@ function InlineAdCard({
               variant="destructive"
               size="icon-xs"
               className="shadow-sm"
-              onClick={() => setShowDeleteDialog(true)}
+              onClick={(e) => { e.stopPropagation(); setShowDeleteDialog(true); }}
             >
               <Trash2 className="size-3" />
             </Button>
@@ -150,7 +154,7 @@ function InlineAdCard({
   );
 }
 
-export function BoardItemGrid({ boardId, items, onItemRemoved }: BoardItemGridProps) {
+export function BoardItemGrid({ boardId, items, onItemRemoved, onAdClick }: BoardItemGridProps) {
   const handleRemoveItem = async (itemId: string) => {
     await api.delete(`/boards/${boardId}/items/${itemId}`);
     toast.success("Ad removed from board.");
@@ -175,6 +179,7 @@ export function BoardItemGrid({ boardId, items, onItemRemoved }: BoardItemGridPr
           key={item.id}
           item={item}
           onRemove={() => handleRemoveItem(item.id)}
+          onAdClick={() => onAdClick(item.ad)}
         />
       ))}
     </div>

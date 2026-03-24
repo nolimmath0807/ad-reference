@@ -7,7 +7,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
 import type { BoardDetailResponse } from "@/types/board";
-import type { PlatformType } from "@/types/ad";
+import type { Ad, PlatformType } from "@/types/ad";
+import { AdDetailModal } from "@/components/ad/AdDetailModal";
 
 type FilterTab = "all" | PlatformType;
 
@@ -22,6 +23,7 @@ export function BoardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,11 +98,20 @@ export function BoardDetailPage() {
                 boardId={id!}
                 items={filteredItems}
                 onItemRemoved={fetchBoard}
+                onAdClick={(ad) => setSelectedAd(ad)}
               />
             </TabsContent>
           ))}
         </Tabs>
       </div>
+
+      <AdDetailModal
+        ad={selectedAd}
+        open={!!selectedAd}
+        onOpenChange={(open) => {
+          if (!open) setSelectedAd(null);
+        }}
+      />
     </div>
   );
 }
