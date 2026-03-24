@@ -96,6 +96,8 @@ function getYouTubeWatchUrl(url: string): string {
   return url;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 function getImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   if (url.startsWith("/static/")) {
@@ -193,10 +195,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
     try {
       let downloadUrl: string;
       if (currentAd.preview_url && isYouTubeUrl(currentAd.preview_url)) {
-        // YouTube 영상은 직접 다운로드 불가 → 새 탭에서 YouTube 열기
-        window.open(getYouTubeWatchUrl(currentAd.preview_url), "_blank");
-        setDownloading(false);
-        return;
+        downloadUrl = `${API_BASE_URL}/ads/${currentAd.id}/video`;
       } else if (currentAd.media_type === "video" && currentAd.preview_url) {
         downloadUrl = currentAd.preview_url;
       } else {
@@ -295,11 +294,12 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     </div>
                   ) : currentAd.preview_url &&
                     isYouTubeUrl(currentAd.preview_url) ? (
-                    <iframe
-                      src={`https://www.youtube.com/embed/${getYouTubeVideoId(currentAd.preview_url)}?rel=0`}
-                      className="aspect-video w-full max-h-[40vh] md:max-h-[70vh]"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
+                    <video
+                      src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
+                      controls
+                      className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
+                      poster={getImageUrl(currentAd.thumbnail_url)}
+                      onError={() => setMediaError(true)}
                     />
                   ) : currentAd.media_type === "video" &&
                     currentAd.preview_url &&
