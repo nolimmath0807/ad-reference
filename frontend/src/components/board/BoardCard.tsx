@@ -53,24 +53,34 @@ export function BoardCard({ board, onDeleted, onUpdated }: BoardCardProps) {
 
   const handleDelete = async () => {
     setIsDeleting(true);
-    await api.delete(`/boards/${board.id}`);
-    toast.success("Board deleted successfully.");
-    setIsDeleting(false);
-    setShowDeleteDialog(false);
-    onDeleted();
+    try {
+      await api.delete(`/boards/${board.id}`);
+      toast.success("Board deleted successfully.");
+      setShowDeleteDialog(false);
+      onDeleted();
+    } catch (err: any) {
+      toast.error(err?.error?.message || "삭제에 실패했습니다.");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await api.put<Board>(`/boards/${board.id}`, {
-      name: editForm.name,
-      description: editForm.description || undefined,
-    });
-    toast.success("Board updated successfully.");
-    setIsUpdating(false);
-    setShowEditDialog(false);
-    onUpdated();
+    try {
+      await api.put<Board>(`/boards/${board.id}`, {
+        name: editForm.name,
+        description: editForm.description || undefined,
+      });
+      toast.success("Board updated successfully.");
+      setShowEditDialog(false);
+      onUpdated();
+    } catch (err: any) {
+      toast.error(err?.error?.message || "수정에 실패했습니다.");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const openEditDialog = () => {

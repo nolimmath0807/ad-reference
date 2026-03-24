@@ -44,33 +44,52 @@ export function SaveToBoardDialog({ adId, open, onOpenChange, onSaved }: SaveToB
 
   const fetchBoards = async () => {
     setIsLoading(true);
-    const data = await api.get<BoardListResponse>("/boards", { page: 1, limit: 50 });
-    setBoards(data.items);
-    setIsLoading(false);
+    try {
+      const data = await api.get<BoardListResponse>("/boards", { page: 1, limit: 50 });
+      setBoards(data.items);
+    } catch {
+      toast.error("보드 목록을 불러올 수 없습니다.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSave = async () => {
     if (!selectedBoardId) return;
     setIsSaving(true);
-    await api.post(`/boards/${selectedBoardId}/items`, { ad_id: adId });
-    toast.success("Ad saved to board.");
-    setIsSaving(false);
-    onOpenChange(false);
-    onSaved?.();
+    try {
+      await api.post(`/boards/${selectedBoardId}/items`, { ad_id: adId });
+      toast.success("Ad saved to board.");
+      onOpenChange(false);
+      onSaved?.();
+    } catch (err: any) {
+      if (err?.status === 409) {
+        toast.error("이미 보드에 추가된 광고입니다.");
+      } else {
+        toast.error(err?.error?.message || "저장에 실패했습니다.");
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCreateBoard = async () => {
     if (!newBoardName.trim()) return;
     setIsCreating(true);
-    const created = await api.post<Board>("/boards", {
-      name: newBoardName.trim(),
-    } satisfies BoardCreateRequest);
-    setBoards((prev) => [created, ...prev]);
-    setSelectedBoardId(created.id);
-    setShowNewBoard(false);
-    setNewBoardName("");
-    setIsCreating(false);
-    toast.success("Board created.");
+    try {
+      const created = await api.post<Board>("/boards", {
+        name: newBoardName.trim(),
+      } satisfies BoardCreateRequest);
+      setBoards((prev) => [created, ...prev]);
+      setSelectedBoardId(created.id);
+      setShowNewBoard(false);
+      setNewBoardName("");
+      toast.success("Board created.");
+    } catch (err: any) {
+      toast.error(err?.error?.message || "보드 생성에 실패했습니다.");
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (

@@ -17,9 +17,21 @@ def update_board(board_id: str, user_id: str, name: str = None, description: str
         )
         row = cur.fetchone()
         if not row:
-            raise HTTPException(status_code=404, detail="Board not found")
+            raise HTTPException(status_code=404, detail={
+                "error": {
+                    "code": "NOT_FOUND",
+                    "message": "보드를 찾을 수 없습니다.",
+                    "details": None,
+                }
+            })
         if str(row[1]) != user_id:
-            raise HTTPException(status_code=404, detail="Board not found")
+            raise HTTPException(status_code=404, detail={
+                "error": {
+                    "code": "NOT_FOUND",
+                    "message": "보드를 찾을 수 없습니다.",
+                    "details": None,
+                }
+            })
 
         updates = []
         params = []
@@ -31,7 +43,13 @@ def update_board(board_id: str, user_id: str, name: str = None, description: str
             params.append(description)
 
         if not updates:
-            raise HTTPException(status_code=400, detail="No fields to update")
+            raise HTTPException(status_code=400, detail={
+                "error": {
+                    "code": "INVALID_INPUT",
+                    "message": "수정할 내용이 없습니다.",
+                    "details": None,
+                }
+            })
 
         updates.append("updated_at = now()")
         params.append(board_id)

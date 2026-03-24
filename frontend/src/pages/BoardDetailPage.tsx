@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { BoardHeader } from "@/components/board/BoardHeader";
 import { BoardItemGrid } from "@/components/board/BoardItemGrid";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api-client";
 import type { BoardDetailResponse } from "@/types/board";
 import type { PlatformType } from "@/types/ad";
@@ -20,14 +22,24 @@ export function BoardDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [board, setBoard] = useState<BoardDetailResponse | null>(null);
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchBoard = useCallback(async () => {
     if (!id) return;
-    const data = await api.get<BoardDetailResponse>(`/boards/${id}`, {
-      page: 1,
-      limit: 100,
-    });
-    setBoard(data);
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.get<BoardDetailResponse>(`/boards/${id}`, {
+        page: 1,
+        limit: 50,
+      });
+      setBoard(data);
+    } catch (err: any) {
+      setError(err?.error?.message || "보드를 불러올 수 없습니다.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [id]);
 
   useEffect(() => {
@@ -40,7 +52,26 @@ export function BoardDetailPage() {
     return board.items.filter((item) => item.ad.platform === activeTab);
   }, [board, activeTab]);
 
-  if (!board) return null;
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !board) {
+    return (
+      <div className="mx-auto w-full px-6 py-8">
+        <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-24">
+          <p className="text-sm text-muted-foreground">{error || "보드를 찾을 수 없습니다."}</p>
+          <Button variant="outline" className="mt-4" asChild>
+            <Link to="/boards">보드 목록으로 돌아가기</Link>
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full px-6 py-8">

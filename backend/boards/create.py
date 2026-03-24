@@ -10,6 +10,15 @@ from conn import get_db
 
 
 def create_board(user_id: str, name: str, description: str = "") -> dict:
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail={
+            "error": {
+                "code": "INVALID_INPUT",
+                "message": "보드 이름을 입력해주세요.",
+                "details": None,
+            }
+        })
+
     request = BoardCreateRequest(name=name, description=description)
 
     with get_db() as (conn, cur):

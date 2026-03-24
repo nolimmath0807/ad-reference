@@ -41,6 +41,7 @@ from boards.detail import get_board_detail
 from boards.update import update_board
 from boards.add_item import add_board_item
 from boards.remove_item import remove_board_item
+from boards.delete import delete_board
 from boards.model import BoardCreateRequest, BoardUpdateRequest, BoardItemAddRequest
 
 from users.profile import get_profile
@@ -294,6 +295,14 @@ async def api_remove_board_item(
     user: dict = Depends(get_user),
 ):
     return remove_board_item(board_id, item_id, user["user_id"])
+
+
+@app.delete("/boards/{board_id}")
+async def api_delete_board(
+    board_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    return delete_board(board_id, user["user_id"])
 
 
 # ──────────────────────────────────────────────
