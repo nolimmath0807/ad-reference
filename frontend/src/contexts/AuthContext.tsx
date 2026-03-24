@@ -26,19 +26,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // localStorage에 저장된 user 정보가 있으면 API 호출 없이 복원
+    // 캐시된 user 정보로 즉시 표시 (빠른 로딩)
+    let hasCachedUser = false;
     const savedUser = localStorage.getItem("user_info");
     if (savedUser) {
       try {
         setUser(JSON.parse(savedUser));
+        hasCachedUser = true;
         setIsLoading(false);
-        return;
       } catch {
         localStorage.removeItem("user_info");
       }
     }
 
-    // user_info가 없는 경우에만 API 호출 (하위 호환)
+    // 항상 최신 정보로 백그라운드 갱신
     api
       .get<User>("/users/me")
       .then((me) => {
@@ -49,8 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         localStorage.removeItem("user_info");
+        setUser(null);
       })
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (!hasCachedUser) setIsLoading(false);
+      });
   }, []);
 
   // 세션 만료 이벤트 리스너
