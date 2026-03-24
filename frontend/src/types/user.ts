@@ -6,6 +6,7 @@ export interface User {
   job_title: string | null;
   avatar_url: string | null;
   role: string;
+  is_approved: boolean;
   created_at: string;
   updated_at: string;
 }

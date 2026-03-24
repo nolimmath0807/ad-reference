@@ -18,7 +18,7 @@ from utils.auth_helper import (
 def login(request: LoginRequest) -> dict:
     with get_db() as (conn, cur):
         cur.execute(
-            "SELECT id, email, password_hash, name, company, job_title, avatar_url, created_at, updated_at FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, company, job_title, avatar_url, created_at, updated_at, is_approved FROM users WHERE email = %s",
             (request.email,),
         )
         row = cur.fetchone()
@@ -45,6 +45,16 @@ def login(request: LoginRequest) -> dict:
             }
         })
 
+    is_approved = row[9]
+    if not is_approved:
+        raise HTTPException(status_code=403, detail={
+            "error": {
+                "code": "NOT_APPROVED",
+                "message": "관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.",
+                "details": None,
+            }
+        })
+
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
 
@@ -55,6 +65,7 @@ def login(request: LoginRequest) -> dict:
         "company": row[4],
         "job_title": row[5],
         "avatar_url": row[6],
+        "is_approved": is_approved,
         "created_at": row[7].isoformat(),
         "updated_at": row[8].isoformat(),
     }

@@ -48,6 +48,7 @@ from users.profile import get_profile
 from users.update import update_profile
 from users.list_users import list_all_users
 from users.reset_password import reset_user_password
+from users.update_user_admin import update_user_admin
 from users.model import UserUpdateRequest, AdminResetPasswordRequest
 
 from platforms.model import PlatformStatus, PlatformType, Status
@@ -1475,6 +1476,19 @@ async def api_embedding_status(user: dict = Depends(get_user)):
 @app.get("/admin/users")
 def api_admin_list_users(user: dict = Depends(get_admin_user)):
     return list_all_users()
+
+
+@app.patch("/admin/users/{user_id}")
+def api_admin_update_user(
+    user_id: str = Path(...),
+    body: dict = Body(...),
+    user: dict = Depends(get_admin_user),
+):
+    return update_user_admin(
+        user_id,
+        is_approved=body.get("is_approved"),
+        role=body.get("role"),
+    )
 
 
 @app.post("/admin/reset-password")

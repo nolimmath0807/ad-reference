@@ -5,14 +5,9 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from auth.model import RegisterRequest, TokenResponse
+from auth.model import RegisterRequest
 from conn import get_db
-from utils.auth_helper import (
-    create_access_token,
-    create_refresh_token,
-    hash_password,
-    ACCESS_EXPIRE_MINUTES,
-)
+from utils.auth_helper import hash_password
 from utils.validation import validate_email, validate_password
 
 
@@ -58,29 +53,22 @@ def register(request: RegisterRequest) -> dict:
         )
         row = cur.fetchone()
 
-    user_id = str(row[0])
-    access_token = create_access_token(user_id, row[1])
-    refresh_token = create_refresh_token(user_id)
-
     user = {
-        "id": user_id,
+        "id": str(row[0]),
         "email": row[1],
         "name": row[2],
         "company": row[3],
         "job_title": row[4],
         "avatar_url": row[5],
+        "is_approved": False,
         "created_at": row[6].isoformat(),
         "updated_at": row[7].isoformat(),
     }
 
-    tokens = TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        token_type="Bearer",
-        expires_in=ACCESS_EXPIRE_MINUTES * 60,
-    ).model_dump()
-
-    return {"user": user, "tokens": tokens}
+    return {
+        "user": user,
+        "message": "회원가입이 완료되었습니다. 관리자 승인 후 로그인할 수 있습니다.",
+    }
 
 
 def main(email: str, password: str, name: str) -> dict:

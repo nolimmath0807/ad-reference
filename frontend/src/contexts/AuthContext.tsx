@@ -9,7 +9,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (data: LoginRequest) => Promise<void>;
-  register: (data: RegisterRequest) => Promise<void>;
+  register: (data: RegisterRequest) => Promise<string>;
   logout: () => Promise<void>;
 }
 
@@ -81,14 +81,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (data: RegisterRequest) => {
-    const result = await api.post<{ user: User; tokens: TokenResponse }>(
+    const result = await api.post<{ user: User; message: string }>(
       "/auth/register",
       data,
     );
-    localStorage.setItem("access_token", result.tokens.access_token);
-    localStorage.setItem("refresh_token", result.tokens.refresh_token);
-    localStorage.setItem("user_info", JSON.stringify(result.user));
-    setUser(result.user);
+    // 토큰 없음 - 승인 대기 상태이므로 로그인하지 않음
+    return result.message;
   };
 
   const logout = async () => {

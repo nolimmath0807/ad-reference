@@ -9,7 +9,7 @@ from conn import get_db
 def list_all_users() -> list[dict]:
     with get_db() as (conn, cur):
         cur.execute(
-            "SELECT id, email, name, company, job_title, role, created_at FROM users ORDER BY created_at"
+            "SELECT id, email, name, company, job_title, role, is_approved, created_at FROM users ORDER BY created_at"
         )
         cols = [desc[0] for desc in cur.description]
         rows = []

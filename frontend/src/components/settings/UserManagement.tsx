@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Copy, KeyRound } from "lucide-react";
+import { Loader2, Copy, KeyRound, CheckCircle, Clock } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface AdminUser {
   id: string;
@@ -20,6 +27,7 @@ interface AdminUser {
   company: string | null;
   job_title: string | null;
   role: string;
+  is_approved: boolean;
   created_at: string;
 }
 
@@ -38,22 +46,51 @@ export function UserManagement() {
 
   const [tempPasswordResult, setTempPasswordResult] = useState<ResetPasswordResponse | null>(null);
 
-  useEffect(() => {
+  const fetchUsers = () => {
     api
       .get<AdminUser[]>("/admin/users")
       .then((data) => setUsers(data))
       .finally(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchUsers();
   }, []);
+
+  const handleApprove = async (userId: string) => {
+    try {
+      await api.patch(`/admin/users/${userId}`, { is_approved: true });
+      toast.success("유저가 승인되었습니다.");
+      fetchUsers();
+    } catch {
+      toast.error("승인 처리에 실패했습니다.");
+    }
+  };
+
+  const handleRoleChange = async (userId: string, newRole: string) => {
+    try {
+      await api.patch(`/admin/users/${userId}`, { role: newRole });
+      toast.success("역할이 변경되었습니다.");
+      fetchUsers();
+    } catch {
+      toast.error("역할 변경에 실패했습니다.");
+    }
+  };
 
   const handleResetConfirm = async () => {
     if (!confirmTarget) return;
     setIsResetting(true);
-    const result = await api.post<ResetPasswordResponse>("/admin/reset-password", {
-      user_id: confirmTarget.id,
-    });
-    setConfirmTarget(null);
-    setIsResetting(false);
-    setTempPasswordResult(result);
+    try {
+      const result = await api.post<ResetPasswordResponse>("/admin/reset-password", {
+        user_id: confirmTarget.id,
+      });
+      setConfirmTarget(null);
+      setTempPasswordResult(result);
+    } catch {
+      toast.error("비밀번호 재설정에 실패했습니다.");
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const handleCopyPassword = () => {
@@ -75,7 +112,7 @@ export function UserManagement() {
       <div>
         <h3 className="text-lg font-semibold">유저 관리</h3>
         <p className="text-sm text-muted-foreground">
-          전체 유저 목록을 조회하고 비밀번호를 재설정할 수 있습니다.
+          전체 유저 목록을 조회하고 승인, 역할 변경, 비밀번호 재설정을 할 수 있습니다.
         </p>
       </div>
 
@@ -90,9 +127,10 @@ export function UserManagement() {
               <tr className="border-b bg-muted/50">
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">이름</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">이메일</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">상태</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">역할</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">가입일</th>
-                <th className="px-4 py-3 text-right font-medium text-muted-foreground"></th>
+                <th className="px-4 py-3 text-right font-medium text-muted-foreground">작업</th>
               </tr>
             </thead>
             <tbody>
@@ -104,28 +142,67 @@ export function UserManagement() {
                   <td className="px-4 py-3 font-medium">{user.name}</td>
                   <td className="px-4 py-3 text-muted-foreground">{user.email}</td>
                   <td className="px-4 py-3">
-                    <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                      {user.role}
-                    </Badge>
+                    {user.is_approved ? (
+                      <Badge variant="default" className="bg-emerald-500 hover:bg-emerald-500/80">
+                        <CheckCircle className="mr-1 size-3" />
+                        승인됨
+                      </Badge>
+                    ) : (
+                      <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100/80">
+                        <Clock className="mr-1 size-3" />
+                        대기 중
+                      </Badge>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {user.is_approved ? (
+                      <Select
+                        value={user.role}
+                        onValueChange={(value) => handleRoleChange(user.id, value)}
+                      >
+                        <SelectTrigger className="h-8 w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="user">user</SelectItem>
+                          <SelectItem value="admin">admin</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge variant="secondary">{user.role}</Badge>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {formatDate(user.created_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setConfirmTarget(user)}
-                    >
-                      <KeyRound className="size-3.5" />
-                      비밀번호 재설정
-                    </Button>
+                    <div className="flex items-center justify-end gap-2">
+                      {!user.is_approved && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="bg-emerald-500 hover:bg-emerald-600"
+                          onClick={() => handleApprove(user.id)}
+                        >
+                          <CheckCircle className="size-3.5" />
+                          승인
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmTarget(user)}
+                      >
+                        <KeyRound className="size-3.5" />
+                        비밀번호 재설정
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
               {users.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-muted-foreground">
+                  <td colSpan={6} className="px-4 py-10 text-center text-muted-foreground">
                     유저가 없습니다.
                   </td>
                 </tr>

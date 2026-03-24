@@ -329,6 +329,9 @@ def migrate():
     # 17. users table - add role column
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'user'")
 
+    # 18. users table - add is_approved column
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE")
+
     conn.commit()
     cur.close()
     conn.close()

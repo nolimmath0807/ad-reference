@@ -15,6 +15,7 @@ class User(BaseModel):
     job_title: Optional[str] = None
     avatar_url: Optional[str] = None
     role: str = "user"
+    is_approved: bool = False
     created_at: datetime
     updated_at: datetime
 
