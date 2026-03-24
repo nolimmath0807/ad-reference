@@ -96,8 +96,6 @@ function getYouTubeWatchUrl(url: string): string {
   return url;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
 function getImageUrl(url: string | null | undefined): string {
   if (!url) return "";
   if (url.startsWith("/static/")) {
