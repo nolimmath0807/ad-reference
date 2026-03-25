@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ProfileForm } from "@/components/settings/ProfileForm";
 import { ApiSettings } from "@/components/settings/ApiSettings";
@@ -5,9 +6,16 @@ import { NotificationSettings } from "@/components/settings/NotificationSettings
 import { UserManagement } from "@/components/settings/UserManagement";
 import { useAuth } from "@/contexts/AuthContext";
 
+const VALID_TABS = ["profile", "api", "notifications", "users"] as const;
+
 export function SettingsPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const defaultTab = tabParam && VALID_TABS.includes(tabParam as (typeof VALID_TABS)[number])
+    ? tabParam
+    : "profile";
 
   return (
     <div className="mx-auto w-full max-w-3xl px-6 py-8">
@@ -18,7 +26,7 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="profile">
+      <Tabs defaultValue={defaultTab} onValueChange={(value) => setSearchParams({ tab: value })}>
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           <TabsTrigger value="api">API Settings</TabsTrigger>

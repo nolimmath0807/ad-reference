@@ -18,7 +18,7 @@ from utils.auth_helper import (
 def login(request: LoginRequest) -> dict:
     with get_db() as (conn, cur):
         cur.execute(
-            "SELECT id, email, password_hash, name, company, job_title, avatar_url, created_at, updated_at, is_approved FROM users WHERE email = %s",
+            "SELECT id, email, password_hash, name, company, job_title, avatar_url, created_at, updated_at, is_approved, role FROM users WHERE email = %s",
             (request.email,),
         )
         row = cur.fetchone()
@@ -66,6 +66,7 @@ def login(request: LoginRequest) -> dict:
         "job_title": row[5],
         "avatar_url": row[6],
         "is_approved": is_approved,
+        "role": row[10],
         "created_at": row[7].isoformat(),
         "updated_at": row[8].isoformat(),
     }

@@ -1,6 +1,8 @@
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FolderOpen, Globe, Settings, LogOut, ChevronsUpDown } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Globe, Settings, LogOut, ChevronsUpDown, Users } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api-client";
 import {
   Sidebar,
   SidebarHeader,
@@ -36,6 +38,18 @@ export function AppSidebar() {
   const { user, logout } = useAuth();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const isAdmin = user?.role === "admin";
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api
+      .get<{ id: string; is_approved: boolean }[]>("/admin/users")
+      .then((users) => {
+        setPendingCount(users.filter((u) => !u.is_approved).length);
+      })
+      .catch(() => {});
+  }, [isAdmin]);
 
   const handleLogout = async () => {
     await logout();
@@ -90,6 +104,23 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
+            {isAdmin && (
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={location.pathname === "/settings" && location.search.includes("tab=users")}
+                  tooltip="유저 관리"
+                  onClick={() => navigate("/settings?tab=users")}
+                >
+                  <Users />
+                  <span>유저 관리</span>
+                  {pendingCount > 0 && (
+                    <span className="ml-auto flex size-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-medium text-white">
+                      {pendingCount}
+                    </span>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>

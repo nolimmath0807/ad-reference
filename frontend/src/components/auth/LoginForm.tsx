@@ -25,18 +25,19 @@ export function LoginForm() {
       navigate("/dashboard");
     } catch (err: unknown) {
       const e = err as Record<string, unknown>;
-      const errorObj = e?.error as Record<string, unknown> | undefined;
       const detail = e?.detail as Record<string, unknown> | string | undefined;
+      const detailError =
+        typeof detail === "object" && detail !== null
+          ? (detail.error as Record<string, unknown> | undefined)
+          : undefined;
 
       // NOT_APPROVED 에러 처리
-      if (e?.status === 403 && errorObj?.code === "NOT_APPROVED") {
+      if (e?.status === 403 && detailError?.code === "NOT_APPROVED") {
         setError("관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.");
       } else {
         const message =
-          (typeof detail === "object" && detail !== null
-            ? (detail.error as Record<string, unknown>)?.message
-            : detail) ||
-          errorObj?.message ||
+          detailError?.message ||
+          (typeof detail === "string" ? detail : null) ||
           "Login failed. Please check your credentials.";
         setError(String(message));
       }
