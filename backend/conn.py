@@ -48,6 +48,7 @@ def get_db_connection():
                 logger.warning(f"Closed connection discarded ({stale_retries}/{max_stale_retries})")
                 continue
             cur = conn.cursor()
+            cur.execute("SELECT 1")
             cur.execute(f'SET search_path TO "{SCHEMA}", public')
             cur.close()
             return conn

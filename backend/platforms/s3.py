@@ -48,7 +48,7 @@ _MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 _DOWNLOAD_TIMEOUT = 60  # seconds
 
 
-def upload_from_url(url: str, s3_key_prefix: str) -> str | None:
+def upload_from_url(url: str, s3_key_prefix: str, cookies: dict[str, str] | None = None) -> str | None:
     """
     URL에서 미디어를 다운로드하여 S3에 업로드하고 퍼블릭 URL 반환.
     실패 시 None 반환 (원본 URL 유지하도록).
@@ -69,7 +69,7 @@ def upload_from_url(url: str, s3_key_prefix: str) -> str | None:
 
     # Step 1: HEAD 요청으로 사이즈 사전 확인
     try:
-        head_resp = httpx.head(url, timeout=10, follow_redirects=True)
+        head_resp = httpx.head(url, timeout=10, follow_redirects=True, cookies=cookies)
         head_resp.raise_for_status()
         content_length = int(head_resp.headers.get("content-length", "0"))
         content_type = head_resp.headers.get("content-type", "").split(";")[0].strip()
@@ -93,7 +93,7 @@ def upload_from_url(url: str, s3_key_prefix: str) -> str | None:
 
     try:
         with httpx.stream(
-            "GET", url, timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True
+            "GET", url, timeout=_DOWNLOAD_TIMEOUT, follow_redirects=True, cookies=cookies
         ) as response:
             response.raise_for_status()
 

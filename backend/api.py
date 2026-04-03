@@ -103,10 +103,15 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 async def global_exception_handler(request: StarletteRequest, exc: Exception):
     import logging
     logging.getLogger("api").error(f"Unhandled error: {type(exc).__name__}: {exc}")
-    return JSONResponse(
+    response = JSONResponse(
         status_code=500,
         content={"detail": {"error": {"code": "INTERNAL_SERVER_ERROR", "message": "서버 오류가 발생했습니다.", "details": None}}},
     )
+    origin = request.headers.get("origin", "")
+    if origin in _origins:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
 
 
 security = HTTPBearer()

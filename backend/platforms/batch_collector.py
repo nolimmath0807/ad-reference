@@ -28,8 +28,15 @@ def _timeout_handler(signum, frame):
 
 def _upload_media(ad, s3_prefix: str) -> None:
     """thumbnail_url과 preview_url을 S3에 업로드하고 ad 객체의 URL을 교체."""
+    # Extract browser cookies for fbcdn downloads
+    cookies = None
+    if ad.raw_data and isinstance(ad.raw_data, dict):
+        cookie_list = ad.raw_data.get('_cookies')
+        if cookie_list:
+            cookies = {c['name']: c['value'] for c in cookie_list}
+
     if ad.thumbnail_url and "s3." not in ad.thumbnail_url and "amazonaws" not in ad.thumbnail_url:
-        s3_url = upload_from_url(ad.thumbnail_url, f"{s3_prefix}/thumb")
+        s3_url = upload_from_url(ad.thumbnail_url, f"{s3_prefix}/thumb", cookies=cookies)
         if s3_url:
             ad.thumbnail_url = s3_url
 
@@ -38,7 +45,7 @@ def _upload_media(ad, s3_prefix: str) -> None:
             return
         if "s3." in ad.preview_url and "amazonaws" in ad.preview_url:
             return
-        s3_url = upload_from_url(ad.preview_url, f"{s3_prefix}/preview")
+        s3_url = upload_from_url(ad.preview_url, f"{s3_prefix}/preview", cookies=cookies)
         if s3_url:
             ad.preview_url = s3_url
 
@@ -144,6 +151,11 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
                     _upload_media(ad, s3_prefix)
                 except Exception as e:
                     logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+
+        # Clean up browser cookies from raw_data before DB insert
+        for ad in ads:
+            if ad.raw_data and isinstance(ad.raw_data, dict) and '_cookies' in ad.raw_data:
+                del ad.raw_data['_cookies']
 
         stats = upsert_ads_batch(ads, brand_id=brand_id)
         result.ads_scraped += len(ads)

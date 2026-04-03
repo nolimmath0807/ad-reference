@@ -15,9 +15,15 @@ logger = logging.getLogger("meta_scraper")
 
 try:
     from dateutil.relativedelta import relativedelta
-    _THREE_MONTHS_AGO = date.today() - relativedelta(months=3)
+    _HAS_RELATIVEDELTA = True
 except ImportError:
-    _THREE_MONTHS_AGO = date.today() - timedelta(days=90)
+    _HAS_RELATIVEDELTA = False
+
+
+def _three_months_ago() -> date:
+    if _HAS_RELATIVEDELTA:
+        return date.today() - relativedelta(months=3)
+    return date.today() - timedelta(days=90)
 
 BLOCKED_DOMAINS = [
     "naver.",
@@ -345,6 +351,15 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, ex
         # Limit results
         filtered_ads = filtered_ads[:max_results]
 
+        # Extract cookies for S3 download (fbcdn requires auth)
+        try:
+            cookies = context.cookies()
+            cookie_list = [{'name': c['name'], 'value': c['value']} for c in cookies]
+            for ad in filtered_ads:
+                ad['_cookies'] = cookie_list
+        except Exception:
+            pass
+
         # Convert to PlatformAd
         platform_ads = [raw_to_platform_ad(ad) for ad in filtered_ads]
         logger.info(f"Meta 스크래핑 완료: {len(platform_ads)}건")
@@ -365,7 +380,7 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, ex
 def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None, browser=None) -> list[PlatformAd]:
     encoded_keyword = quote(keyword)
     today = date.today()
-    three_months_ago = _THREE_MONTHS_AGO
+    three_months_ago = _three_months_ago()
     url = (
         f"https://www.facebook.com/ads/library/"
         f"?active_status=active&ad_type=all&country=KR"
@@ -378,7 +393,7 @@ def scrape_meta_ads(keyword: str, headless: bool = True, max_results: int = 500,
 
 def scrape_meta_ads_by_page_id(page_id: str, headless: bool = True, max_results: int = 500, existing_source_ids: set | None = None, browser=None) -> list[PlatformAd]:
     today = date.today()
-    three_months_ago = _THREE_MONTHS_AGO
+    three_months_ago = _three_months_ago()
     url = (
         f"https://www.facebook.com/ads/library/"
         f"?active_status=active&ad_type=all&country=KR"
