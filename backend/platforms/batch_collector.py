@@ -22,6 +22,13 @@ BROWSER_RESTART_INTERVAL = int(os.getenv("BROWSER_RESTART_INTERVAL", "10"))
 BATCH_TIMEOUT = int(os.getenv("BATCH_TIMEOUT_SECONDS", "7200"))
 
 
+def _sanitize_s3_key(value: str) -> str:
+    """URL이나 특수문자를 포함한 source_value를 S3 key에 안전한 형태로 변환."""
+    value = value.replace("https://", "").replace("http://", "")
+    value = value.strip("/")
+    return value
+
+
 def _timeout_handler(signum, frame):
     raise TimeoutError(f"배치 실행 {BATCH_TIMEOUT}초 초과")
 
@@ -145,7 +152,7 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
 
         # S3 업로드: 만료되는 CDN URL을 영구 보관
         if is_s3_configured():
-            s3_prefix = f"ads/{platform}/{source_value}"
+            s3_prefix = f"ads/{platform}/{_sanitize_s3_key(source_value)}"
             for ad in ads:
                 try:
                     _upload_media(ad, s3_prefix)
@@ -348,7 +355,7 @@ def scrape_domain_fully(domain: str, browser=None) -> DomainScrapeResult:
 
         # S3 업로드: 만료되는 CDN URL을 영구 보관
         if is_s3_configured():
-            s3_prefix = f"ads/google/{domain}"
+            s3_prefix = f"ads/google/{_sanitize_s3_key(domain)}"
             for ad in ads:
                 try:
                     _upload_media(ad, s3_prefix)
@@ -393,7 +400,7 @@ def scrape_domain_incremental(domain: str, browser=None) -> DomainScrapeResult:
 
         # S3 업로드: 만료되는 CDN URL을 영구 보관
         if is_s3_configured():
-            s3_prefix = f"ads/google/{domain}"
+            s3_prefix = f"ads/google/{_sanitize_s3_key(domain)}"
             for ad in ads:
                 try:
                     _upload_media(ad, s3_prefix)
