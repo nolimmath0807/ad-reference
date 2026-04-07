@@ -52,7 +52,7 @@ def get_db_connection():
             cur.execute(f'SET search_path TO "{SCHEMA}", public')
             cur.close()
             return conn
-        except (psycopg2.OperationalError, psycopg2.InterfaceError):
+        except (psycopg2.DatabaseError, psycopg2.InterfaceError):
             try:
                 _pool.putconn(conn, close=True)
             except Exception:
