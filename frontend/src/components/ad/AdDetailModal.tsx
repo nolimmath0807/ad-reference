@@ -294,12 +294,12 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     </div>
                   ) : currentAd.preview_url &&
                     isYouTubeUrl(currentAd.preview_url) ? (
-                    <video
-                      src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
-                      controls
-                      className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
-                      poster={getImageUrl(currentAd.thumbnail_url)}
-                      onError={() => setMediaError(true)}
+                    <iframe
+                      src={`https://www.youtube.com/embed/${getYouTubeVideoId(currentAd.preview_url!)}`}
+                      title={currentAd.advertiser_name}
+                      className="aspect-video w-full md:min-h-[400px]"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
                     />
                   ) : currentAd.media_type === "video" &&
                     currentAd.preview_url &&

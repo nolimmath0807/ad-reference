@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 # Install ffmpeg for audio extraction (ad script feature)
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl nodejs && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg curl && rm -rf /var/lib/apt/lists/*
 
 # Install uv package manager
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
@@ -13,6 +13,9 @@ COPY pyproject.toml uv.lock ./
 
 # Install dependencies
 RUN uv sync --frozen --no-dev
+
+# Ensure latest yt-dlp (bypasses lock file pinning)
+RUN uv pip install --upgrade yt-dlp && uv run python -c "import yt_dlp; print('yt-dlp version:', yt_dlp.version.__version__)"
 
 # Install Playwright Chromium browser + system dependencies
 RUN uv run playwright install --with-deps chromium

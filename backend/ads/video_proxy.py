@@ -46,12 +46,18 @@ def get_video_path(ad_id: str) -> str | None:
         "outtmpl": cache_path,
         "quiet": True,
         "no_warnings": True,
+        "socket_timeout": 30,
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([preview_url])
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([preview_url])
+    except Exception:
+        logger.exception("yt-dlp download failed for ad %s (url=%s)", ad_id, preview_url)
+        return None
 
     if not os.path.exists(cache_path):
-        raise RuntimeError(f"yt-dlp failed to download: {preview_url}")
+        logger.error("yt-dlp produced no output file for ad %s (url=%s)", ad_id, preview_url)
+        return None
 
     logger.info("Cached video for ad %s at %s", ad_id, cache_path)
     return cache_path
