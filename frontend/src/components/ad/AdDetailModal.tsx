@@ -201,7 +201,7 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
       // YouTube 영상: 백엔드 yt-dlp 프록시로 직접 다운로드 (fetch-blob 우회)
       if (currentAd.preview_url && isYouTubeUrl(currentAd.preview_url)) {
         const a = document.createElement("a");
-        a.href = `${API_BASE_URL}/ads/${currentAd.id}/video`;
+        a.href = `${API_BASE_URL}/ads/${currentAd.id}/video/download`;
         a.download = getDownloadFilename(currentAd);
         document.body.appendChild(a);
         a.click();

@@ -1360,10 +1360,30 @@ async def api_get_ad_script(
 async def api_get_ad_video(
     ad_id: str = Path(...),
 ):
-    """광고 영상을 프록시로 제공한다.
+    """광고 영상을 프록시로 제공한다 (인라인 재생용).
 
-    YouTube 영상이면 yt-dlp로 다운로드 후 파일로 응답.
-    YouTube가 아니면 원본 preview_url로 리다이렉트.
+    캐시된 파일을 Content-Disposition 없이 반환하여 <video> 태그에서 인라인 재생 가능.
+    캐시 없으면 404.
+    """
+    video_path = get_video_path(ad_id)
+
+    if video_path:
+        return FileResponse(
+            video_path,
+            media_type="video/mp4",
+        )
+
+    raise HTTPException(status_code=404, detail="Video not found")
+
+
+@app.get("/ads/{ad_id}/video/download")
+async def api_download_ad_video(
+    ad_id: str = Path(...),
+):
+    """광고 영상을 다운로드한다 (attachment).
+
+    캐시된 파일을 Content-Disposition: attachment 헤더와 함께 반환.
+    캐시 없으면 404.
     """
     video_path = get_video_path(ad_id)
 
@@ -1374,11 +1394,6 @@ async def api_get_ad_video(
             media_type="video/mp4",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
-
-    # YouTube가 아닌 경우 원본 URL로 리다이렉트
-    preview_url = get_preview_url(ad_id)
-    if preview_url:
-        return RedirectResponse(url=preview_url)
 
     raise HTTPException(status_code=404, detail="Video not found")
 
