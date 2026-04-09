@@ -31,6 +31,7 @@ export function AdComments({ adId }: AdCommentsProps) {
   }, [adId]);
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     const trimmed = content.trim();
     if (!trimmed) return;
 
