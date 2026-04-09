@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -366,7 +367,7 @@ async def api_get_shared_board(
 async def api_list_featured(
     user: dict = Depends(get_user),
     page: int = Query(default=1, ge=1),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=1000),
     platform: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
 ):
@@ -1365,7 +1366,8 @@ async def api_get_ad_video(
     캐시된 파일을 Content-Disposition 없이 반환하여 <video> 태그에서 인라인 재생 가능.
     캐시 없으면 404.
     """
-    video_path = get_video_path(ad_id)
+    loop = asyncio.get_event_loop()
+    video_path = await loop.run_in_executor(None, get_video_path, ad_id)
 
     if video_path:
         return FileResponse(
@@ -1385,7 +1387,8 @@ async def api_download_ad_video(
     캐시된 파일을 Content-Disposition: attachment 헤더와 함께 반환.
     캐시 없으면 404.
     """
-    video_path = get_video_path(ad_id)
+    loop = asyncio.get_event_loop()
+    video_path = await loop.run_in_executor(None, get_video_path, ad_id)
 
     if video_path:
         filename = f"ad_{ad_id}.mp4"

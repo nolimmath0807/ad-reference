@@ -45,9 +45,18 @@ function formatDate(dateStr: string | null): string {
 export function AdCard({ ad, onClick, onSave }: AdCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [imgError, setImgError] = useState(false);
+  const [imgSrc, setImgSrc] = useState(ad.thumbnail_url);
   const platform = platformStyles[ad.platform];
 
   const showPlaceholder = !ad.thumbnail_url || imgError;
+
+  function handleImgError() {
+    if (imgSrc?.includes('maxresdefault.jpg')) {
+      setImgSrc(imgSrc.replace('maxresdefault.jpg', 'hqdefault.jpg'));
+    } else {
+      setImgError(true);
+    }
+  }
 
   return (
     <div
@@ -80,9 +89,9 @@ export function AdCard({ ad, onClick, onSave }: AdCardProps) {
         ) : ad.format === "text" && !ad.ad_copy && ad.thumbnail_url && !imgError ? (
           <>
             <img
-              src={ad.thumbnail_url}
+              src={imgSrc ?? ad.thumbnail_url}
               alt={ad.advertiser_name}
-              onError={() => setImgError(true)}
+              onError={handleImgError}
               className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
             />
             <div className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white">
@@ -102,9 +111,9 @@ export function AdCard({ ad, onClick, onSave }: AdCardProps) {
           </div>
         ) : (
           <img
-            src={ad.thumbnail_url}
+            src={imgSrc ?? ad.thumbnail_url}
             alt={ad.advertiser_name}
-            onError={() => setImgError(true)}
+            onError={handleImgError}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         )}

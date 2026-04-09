@@ -1,8 +1,10 @@
 from conn import get_db
+from utils.serialize import rows_to_dicts
 
 
 def list_activity_logs(
     event_type: str | None = None,
+    user_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
 ) -> dict:
@@ -13,6 +15,10 @@ def list_activity_logs(
         if event_type:
             conditions.append("event_type = %s")
             params.append(event_type)
+
+        if user_id:
+            conditions.append("user_id = %s")
+            params.append(user_id)
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
 
@@ -29,15 +35,6 @@ def list_activity_logs(
             """,
             params + [limit, offset],
         )
-        cols = [desc[0] for desc in cur.description]
-        items = []
-        for row in cur.fetchall():
-            d = dict(zip(cols, row))
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-                elif hasattr(v, "hex"):
-                    d[k] = str(v)
-            items.append(d)
+        items = rows_to_dicts(cur)
 
     return {"items": items, "total": total}
