@@ -11,14 +11,17 @@ import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import type { Ad, PlatformType } from "@/types/ad";
 
-interface FeaturedItem {
-  id: string;
-  ad_id: string;
-  added_by: string | null;
-  added_by_name: string | null;
-  added_by_avatar: string | null;
+interface Curator {
+  id: string | null;
+  name: string | null;
+  avatar_url: string | null;
   added_at: string;
-  memo: string | null;
+}
+
+interface FeaturedItem {
+  ad_id: string;
+  first_added_at: string;
+  curators: Curator[];
   ad: Ad;
 }
 
@@ -222,7 +225,7 @@ export function FeaturedPage() {
     e.stopPropagation();
     await api.delete(`/admin/featured-references/${item.ad_id}`);
     toast.success("추천에서 제거되었습니다.");
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setItems((prev) => prev.filter((i) => i.ad_id !== item.ad_id));
   };
 
   const handleAdded = () => {
@@ -285,7 +288,7 @@ export function FeaturedPage() {
         <div className="space-y-6">
           <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
             {items.map((item) => (
-              <div key={item.id} className="group relative">
+              <div key={item.ad_id} className="group relative">
                 {/* Remove button (admin only) */}
                 {isAdmin && (
                   <button
@@ -363,28 +366,22 @@ export function FeaturedPage() {
                       </span>
                     </div>
 
-                    {/* Memo (if present) */}
-                    {item.memo && (
-                      <p className="line-clamp-1 text-xs italic text-muted-foreground/70">
-                        {item.memo}
-                      </p>
-                    )}
-
                     {/* Curator info */}
-                    <div className="flex items-center gap-1.5 border-t pt-2 mt-1">
-                      {item.added_by_avatar ? (
+                    <div className="flex items-center gap-1.5 border-t pt-2 mt-1 min-w-0">
+                      {item.curators[0]?.avatar_url ? (
                         <img
-                          src={item.added_by_avatar}
-                          alt={item.added_by_name ?? ""}
-                          className="size-4 rounded-full object-cover"
+                          src={item.curators[0].avatar_url}
+                          alt={item.curators[0].name ?? ""}
+                          className="size-4 shrink-0 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="flex size-4 items-center justify-center rounded-full bg-muted text-[8px] font-medium text-muted-foreground">
-                          {item.added_by_name ? item.added_by_name.charAt(0).toUpperCase() : "?"}
+                        <div className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[8px] font-medium text-muted-foreground">
+                          {item.curators[0]?.name ? item.curators[0].name.charAt(0).toUpperCase() : "?"}
                         </div>
                       )}
                       <span className="truncate text-[10px] text-muted-foreground">
-                        {item.added_by_name ?? "Unknown"} · {new Date(item.added_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                        {item.curators.map((c) => c.name ?? "Unknown").join(" · ")} ·{" "}
+                        {new Date(item.first_added_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
                       </span>
                     </div>
                   </div>

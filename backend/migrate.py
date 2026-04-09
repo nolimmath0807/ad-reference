@@ -351,8 +351,32 @@ def migrate():
             added_by UUID REFERENCES users(id) ON DELETE SET NULL,
             added_at TIMESTAMPTZ DEFAULT NOW(),
             memo TEXT,
-            UNIQUE(ad_id)
+            UNIQUE(ad_id, added_by)
         )
+    """)
+    # UNIQUE constraint 변경을 위한 migration (기존 constraint 제거 후 새 constraint 추가)
+    cur.execute("""
+        DO $$
+        BEGIN
+            -- 기존 UNIQUE(ad_id) constraint 제거
+            IF EXISTS (
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_class t ON c.conrelid = t.oid
+                WHERE t.relname = 'featured_references' AND c.contype = 'u'
+                AND c.conname = 'featured_references_ad_id_key'
+            ) THEN
+                ALTER TABLE featured_references DROP CONSTRAINT featured_references_ad_id_key;
+            END IF;
+            -- 새 UNIQUE(ad_id, added_by) constraint 추가 (없는 경우만)
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint c
+                JOIN pg_class t ON c.conrelid = t.oid
+                WHERE t.relname = 'featured_references' AND c.contype = 'u'
+                AND c.conname = 'featured_references_ad_id_added_by_key'
+            ) THEN
+                ALTER TABLE featured_references ADD CONSTRAINT featured_references_ad_id_added_by_key UNIQUE(ad_id, added_by);
+            END IF;
+        END $$;
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_added_at ON featured_references(added_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_ad_id ON featured_references(ad_id)")

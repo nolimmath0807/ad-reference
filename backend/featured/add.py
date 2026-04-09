@@ -20,7 +20,7 @@ def add_featured(ad_id: str, added_by: str, memo: str | None = None) -> dict:
                 }
             })
 
-        cur.execute("SELECT id FROM featured_references WHERE ad_id = %s::uuid", (ad_id,))
+        cur.execute("SELECT id FROM featured_references WHERE ad_id = %s::uuid AND added_by = %s::uuid", (ad_id, added_by))
         if cur.fetchone():
             raise HTTPException(status_code=409, detail={
                 "error": {

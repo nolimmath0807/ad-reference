@@ -25,12 +25,17 @@ class FeaturedReference(BaseModel):
     memo: Optional[str] = None
 
 
-class FeaturedReferenceWithAd(BaseModel):
-    id: str
-    ad_id: str
-    added_by: Optional[str] = None
+class Curator(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
     added_at: datetime
-    memo: Optional[str] = None
+
+
+class FeaturedReferenceWithAd(BaseModel):
+    ad_id: str
+    first_added_at: datetime
+    curators: list[Curator]
     ad: Ad
 
 
@@ -71,12 +76,17 @@ def main() -> dict:
         memo="Great example of brand storytelling",
     )
 
-    featured_with_ad = FeaturedReferenceWithAd(
-        id="f1e2d3c4-b5a6-7890-fedc-ba9876543210",
-        ad_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        added_by="u1s2e3r4-a5b6-7890-user-ab1234567890",
+    curator = Curator(
+        id="u1s2e3r4-a5b6-7890-user-ab1234567890",
+        name="Admin User",
+        avatar_url="https://example.com/avatar.jpg",
         added_at=datetime(2026, 3, 1, 9, 0, 0),
-        memo="Great example of brand storytelling",
+    )
+
+    featured_with_ad = FeaturedReferenceWithAd(
+        ad_id="a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        first_added_at=datetime(2026, 3, 1, 9, 0, 0),
+        curators=[curator],
         ad=ad,
     )
 
