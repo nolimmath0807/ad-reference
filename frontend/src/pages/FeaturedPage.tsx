@@ -15,6 +15,8 @@ interface FeaturedItem {
   id: string;
   ad_id: string;
   added_by: string | null;
+  added_by_name: string | null;
+  added_by_avatar: string | null;
   added_at: string;
   memo: string | null;
   ad: Ad;
@@ -367,6 +369,24 @@ export function FeaturedPage() {
                         {item.memo}
                       </p>
                     )}
+
+                    {/* Curator info */}
+                    <div className="flex items-center gap-1.5 border-t pt-2 mt-1">
+                      {item.added_by_avatar ? (
+                        <img
+                          src={item.added_by_avatar}
+                          alt={item.added_by_name ?? ""}
+                          className="size-4 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-4 items-center justify-center rounded-full bg-muted text-[8px] font-medium text-muted-foreground">
+                          {item.added_by_name ? item.added_by_name.charAt(0).toUpperCase() : "?"}
+                        </div>
+                      )}
+                      <span className="truncate text-[10px] text-muted-foreground">
+                        {item.added_by_name ?? "Unknown"} · {new Date(item.added_at).toLocaleDateString("ko-KR", { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
                   </div>
                 </button>
               </div>

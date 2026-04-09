@@ -28,7 +28,7 @@ def list_featured(
 
     with get_db() as (conn, cur):
         cur.execute(
-            f"SELECT COUNT(*) FROM featured_references fr JOIN ads a ON fr.ad_id = a.id {where_clause}",
+            f"SELECT COUNT(*) FROM featured_references fr JOIN ads a ON fr.ad_id = a.id LEFT JOIN users u ON fr.added_by = u.id {where_clause}",
             params,
         )
         total = cur.fetchone()[0]
@@ -39,9 +39,11 @@ def list_featured(
                    a.id, a.platform, a.format, a.advertiser_name, a.advertiser_handle,
                    a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
                    a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
-                   a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at
+                   a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at,
+                   u.name AS added_by_name, u.avatar_url AS added_by_avatar
             FROM featured_references fr
             JOIN ads a ON fr.ad_id = a.id
+            LEFT JOIN users u ON fr.added_by = u.id
             {where_clause}
             ORDER BY fr.added_at DESC
             LIMIT %s OFFSET %s
@@ -81,6 +83,8 @@ def list_featured(
             "added_at": row[3].isoformat(),
             "memo": row[4],
             "ad": ad.model_dump(mode="json"),
+            "added_by_name": row[25],
+            "added_by_avatar": row[26],
         })
 
     return {
