@@ -393,6 +393,10 @@ def migrate():
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_comments_ad_id ON ad_comments(ad_id, created_at DESC)")
 
+    # 21. boards share_token
+    cur.execute("ALTER TABLE boards ADD COLUMN IF NOT EXISTS share_token VARCHAR(36) UNIQUE")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_boards_share_token ON boards(share_token) WHERE share_token IS NOT NULL")
+
     conn.commit()
     cur.close()
     conn.close()

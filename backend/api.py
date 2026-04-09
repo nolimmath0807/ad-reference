@@ -51,6 +51,9 @@ from boards.update import update_board
 from boards.add_item import add_board_item
 from boards.remove_item import remove_board_item
 from boards.delete import delete_board
+from boards.share import generate_share_token
+from boards.unshare import revoke_share_token
+from boards.shared_detail import get_shared_board
 from boards.model import BoardCreateRequest, BoardUpdateRequest, BoardItemAddRequest
 
 from featured.add import add_featured
@@ -329,6 +332,30 @@ async def api_delete_board(
     user: dict = Depends(get_user),
 ):
     return delete_board(board_id, user["user_id"])
+
+
+@app.post("/boards/{board_id}/share")
+async def api_share_board(
+    board_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    return generate_share_token(board_id, str(user["user_id"]))
+
+
+@app.delete("/boards/{board_id}/share", status_code=204)
+async def api_unshare_board(
+    board_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    revoke_share_token(board_id, str(user["user_id"]))
+
+
+@app.get("/shared/{token}")
+async def api_get_shared_board(
+    token: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    return get_shared_board(token)
 
 
 # ──────────────────────────────────────────────

@@ -14,6 +14,7 @@ import { CompetitorDetailPage } from "@/pages/CompetitorDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { AdDetailPage } from "@/pages/AdDetailPage";
 import { FeaturedPage } from "@/pages/FeaturedPage";
+import { SharedBoardPage } from "@/pages/SharedBoardPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 
 function App() {
@@ -118,6 +119,17 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <AdDetailPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/shared/:token"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <SharedBoardPage />
                 </AppLayout>
               </ProtectedRoute>
             }

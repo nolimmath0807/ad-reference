@@ -8,6 +8,7 @@ export interface Board {
   item_count: number;
   created_at: string;
   updated_at: string;
+  share_token: string | null;
 }
 
 export interface BoardCreateRequest {
@@ -48,6 +49,7 @@ export interface BoardDetailResponse {
   item_count: number;
   created_at: string;
   updated_at: string;
+  share_token: string | null;
   items: BoardItem[];
   total: number;
   page: number;

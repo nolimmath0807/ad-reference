@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Share2, Download, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,22 +14,23 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import type { BoardDetailResponse } from "@/types/board";
+import { ShareBoardDialog } from "@/components/board/ShareBoardDialog";
 
 interface BoardHeaderProps {
   board: BoardDetailResponse;
 }
 
 export function BoardHeader({ board }: BoardHeaderProps) {
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(
+    board.share_token ?? null
+  );
+
   const updatedAt = new Date(board.updated_at).toLocaleDateString("ko-KR", {
     year: "numeric",
     month: "long",
     day: "numeric",
   });
-
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success("Link copied to clipboard.");
-  };
 
   const handleExport = () => {
     toast.info("Export feature coming soon.");
@@ -66,9 +68,9 @@ export function BoardHeader({ board }: BoardHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleShare}>
-            <Share2 />
-            Share
+          <Button variant="outline" size="sm" onClick={() => setShareDialogOpen(true)}>
+            <Share2 className="size-4" />
+            공유
           </Button>
           <Button variant="outline" size="sm" onClick={handleExport}>
             <Download />
@@ -76,6 +78,14 @@ export function BoardHeader({ board }: BoardHeaderProps) {
           </Button>
         </div>
       </div>
+
+      <ShareBoardDialog
+        boardId={board.id}
+        shareToken={shareToken}
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        onShareChange={(token) => setShareToken(token)}
+      />
 
       <Separator />
     </div>
