@@ -10,6 +10,7 @@ import {
   Film,
   FileText,
   Download,
+  Star,
 } from "lucide-react";
 import {
   Dialog,
@@ -30,6 +31,7 @@ import { AdMetrics } from "@/components/ad/AdMetrics";
 import { SimilarAds } from "@/components/ad/SimilarAds";
 import { SaveToBoardDialog } from "@/components/ad/SaveToBoardDialog";
 import type { Ad, AdDetailResponse, AdScriptResponse, PlatformType, FormatType } from "@/types/ad";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface AdDetailModalProps {
   ad: Ad | null;
@@ -115,6 +117,8 @@ function getDownloadFilename(ad: Ad): string {
 }
 
 export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<AdDetailResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -122,6 +126,7 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
   const [script, setScript] = useState<AdScriptResponse | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [featuredLoading, setFeaturedLoading] = useState(false);
 
   useEffect(() => {
     if (open && ad) {
@@ -156,6 +161,23 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
     const url = `${window.location.origin}/ads/${currentAd?.id}`;
     navigator.clipboard.writeText(url);
     toast.success("Link copied to clipboard.");
+  };
+
+  const handleAddToFeatured = async () => {
+    if (!currentAd) return;
+    setFeaturedLoading(true);
+    try {
+      await api.post("/admin/featured-references", { ad_id: currentAd.id });
+      toast.success("Featured References에 추가되었습니다.");
+    } catch (err: any) {
+      if (err?.status === 409 || err?.response?.status === 409) {
+        toast.info("이미 Featured References에 추가된 광고입니다.");
+      } else {
+        toast.error("추가에 실패했습니다.");
+      }
+    } finally {
+      setFeaturedLoading(false);
+    }
   };
 
   const handleExtractScript = async () => {
@@ -540,6 +562,11 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     <Bookmark className="size-4" />
                     Save to Board
                   </Button>
+                  {isAdmin && (
+                    <Button variant="outline" size="icon" onClick={handleAddToFeatured} disabled={featuredLoading} title="Featured에 추가">
+                      <Star className="size-4" />
+                    </Button>
+                  )}
                   <Button variant="outline" size="icon" onClick={handleCopyLink}>
                     <Link2 className="size-4" />
                   </Button>

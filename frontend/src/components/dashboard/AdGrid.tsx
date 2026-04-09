@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from "react";
-import { Heart, MessageCircle, Share2, ImageIcon, ImageOff } from "lucide-react";
+import { Heart, MessageCircle, Share2, ImageIcon, ImageOff, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { api } from "@/lib/api-client";
+import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 import type { Ad } from "@/types/ad";
 
 interface AdGridProps {
@@ -80,6 +83,26 @@ function AdCardSkeleton() {
 
 export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const [featuredLoadingId, setFeaturedLoadingId] = useState<string | null>(null);
+
+  const handleAddToFeatured = async (ad: Ad, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFeaturedLoadingId(ad.id);
+    try {
+      await api.post("/admin/featured-references", { ad_id: ad.id });
+      toast.success("Featured References에 추가되었습니다.");
+    } catch (err: any) {
+      if (err?.status === 409 || err?.response?.status === 409) {
+        toast.info("이미 Featured References에 추가된 광고입니다.");
+      } else {
+        toast.error("추가에 실패했습니다.");
+      }
+    } finally {
+      setFeaturedLoadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (!hasNext || loading) return;
@@ -122,69 +145,80 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
     <div className="space-y-6">
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {ads.map((ad) => (
-          <button
-            key={ad.id}
-            onClick={() => onAdClick(ad)}
-            className="group overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md"
-          >
-            {/* Thumbnail */}
-            <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-              <AdThumbnail url={ad.thumbnail_url} alt={ad.advertiser_name} format={ad.format} />
-              {/* Platform badge */}
-              <Badge
-                variant="secondary"
-                className={`absolute left-2 top-2 text-[10px] uppercase ${platformColors[ad.platform] ?? ""}`}
+          <div key={ad.id} className="relative group">
+            {isAdmin && (
+              <button
+                onClick={(e) => handleAddToFeatured(ad, e)}
+                disabled={featuredLoadingId === ad.id}
+                title="Featured에 추가"
+                className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow transition-all hover:bg-brand-primary hover:text-white group-hover:opacity-100 disabled:opacity-50"
               >
-                {ad.platform}
-              </Badge>
-              {/* Format badge */}
-              <Badge variant="secondary" className="absolute right-2 top-2 text-[10px]">
-                {formatLabels[ad.format] ?? ad.format}
-              </Badge>
-            </div>
+                <Star className="size-3.5" />
+              </button>
+            )}
+            <button
+              onClick={() => onAdClick(ad)}
+              className="w-full overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md"
+            >
+              {/* Thumbnail */}
+              <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                <AdThumbnail url={ad.thumbnail_url} alt={ad.advertiser_name} format={ad.format} />
+                {/* Platform badge */}
+                <Badge
+                  variant="secondary"
+                  className={`absolute left-2 top-2 text-[10px] uppercase ${platformColors[ad.platform] ?? ""}`}
+                >
+                  {ad.platform}
+                </Badge>
+                {/* Format badge */}
+                <Badge variant="secondary" className="absolute right-2 top-2 text-[10px]">
+                  {formatLabels[ad.format] ?? ad.format}
+                </Badge>
+              </div>
 
-            {/* Card body */}
-            <div className="space-y-2.5 p-3.5">
-              {/* Advertiser */}
-              <div className="flex items-center gap-2">
-                {ad.advertiser_avatar_url ? (
-                  <img
-                    src={ad.advertiser_avatar_url}
-                    alt={ad.advertiser_name}
-                    className="size-6 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
-                    {ad.advertiser_name.charAt(0).toUpperCase()}
-                  </div>
+              {/* Card body */}
+              <div className="space-y-2.5 p-3.5">
+                {/* Advertiser */}
+                <div className="flex items-center gap-2">
+                  {ad.advertiser_avatar_url ? (
+                    <img
+                      src={ad.advertiser_avatar_url}
+                      alt={ad.advertiser_name}
+                      className="size-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                      {ad.advertiser_name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="truncate text-sm font-medium">{ad.advertiser_name}</span>
+                </div>
+
+                {/* Ad copy */}
+                {ad.ad_copy && (
+                  <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed">
+                    {ad.ad_copy}
+                  </p>
                 )}
-                <span className="truncate text-sm font-medium">{ad.advertiser_name}</span>
-              </div>
 
-              {/* Ad copy */}
-              {ad.ad_copy && (
-                <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed">
-                  {ad.ad_copy}
-                </p>
-              )}
-
-              {/* Engagement stats */}
-              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1">
-                  <Heart className="size-3" />
-                  {formatCount(ad.likes)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <MessageCircle className="size-3" />
-                  {formatCount(ad.comments)}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <Share2 className="size-3" />
-                  {formatCount(ad.shares)}
-                </span>
+                {/* Engagement stats */}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Heart className="size-3" />
+                    {formatCount(ad.likes)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <MessageCircle className="size-3" />
+                    {formatCount(ad.comments)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Share2 className="size-3" />
+                    {formatCount(ad.shares)}
+                  </span>
+                </div>
               </div>
-            </div>
-          </button>
+            </button>
+          </div>
         ))}
       </div>
 
