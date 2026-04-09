@@ -225,14 +225,21 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
     if (!currentAd) return;
     setDownloading(true);
     try {
-      let downloadUrl: string;
+      // YouTube 영상: 백엔드 yt-dlp 프록시로 직접 다운로드 (fetch-blob 우회)
       if (currentAd.preview_url && isYouTubeUrl(currentAd.preview_url)) {
-        downloadUrl = `${API_BASE_URL}/ads/${currentAd.id}/video`;
-      } else if (currentAd.media_type === "video" && currentAd.preview_url) {
-        downloadUrl = currentAd.preview_url;
-      } else {
-        downloadUrl = getImageUrl(currentAd.thumbnail_url);
+        const a = document.createElement("a");
+        a.href = `${API_BASE_URL}/ads/${currentAd.id}/video`;
+        a.download = getDownloadFilename(currentAd);
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
       }
+
+      const downloadUrl =
+        currentAd.media_type === "video" && currentAd.preview_url
+          ? currentAd.preview_url
+          : getImageUrl(currentAd.thumbnail_url);
 
       const response = await fetch(downloadUrl, { mode: "cors" });
       if (!response.ok) throw new Error("Download failed");
@@ -246,15 +253,7 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch {
-      try {
-        const directUrl =
-          currentAd.media_type === "video" && currentAd.preview_url
-            ? currentAd.preview_url
-            : getImageUrl(currentAd.thumbnail_url);
-        window.open(directUrl, "_blank");
-      } catch {
-        toast.error("다운로드에 실패했습니다.");
-      }
+      toast.error("다운로드에 실패했습니다.");
     } finally {
       setDownloading(false);
     }

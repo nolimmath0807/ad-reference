@@ -1368,7 +1368,12 @@ async def api_get_ad_video(
     video_path = get_video_path(ad_id)
 
     if video_path:
-        return FileResponse(video_path, media_type="video/mp4")
+        filename = f"ad_{ad_id}.mp4"
+        return FileResponse(
+            video_path,
+            media_type="video/mp4",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
 
     # YouTube가 아닌 경우 원본 URL로 리다이렉트
     preview_url = get_preview_url(ad_id)
