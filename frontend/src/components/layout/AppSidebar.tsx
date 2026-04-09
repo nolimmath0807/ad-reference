@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, FolderOpen, Globe, Settings, LogOut, ChevronsUpDown, Users } from "lucide-react";
+import { LayoutDashboard, FolderOpen, Globe, Settings, LogOut, ChevronsUpDown, Users, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api-client";
 import {
@@ -28,6 +28,7 @@ import {
 const navItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/dashboard" },
   { label: "Boards", icon: FolderOpen, path: "/boards" },
+  { label: "Featured", icon: Star, path: "/featured" },
   { label: "Competitors", icon: Globe, path: "/competitors" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];

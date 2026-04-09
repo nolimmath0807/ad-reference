@@ -20,7 +20,11 @@ from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from starlette.requests import Request as StarletteRequest
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
+from utils.serialize import serialize_value, serialize_row, rows_to_dicts
 from auth.login import login
 from auth.register import register
 from auth.logout import logout
@@ -43,6 +47,11 @@ from boards.add_item import add_board_item
 from boards.remove_item import remove_board_item
 from boards.delete import delete_board
 from boards.model import BoardCreateRequest, BoardUpdateRequest, BoardItemAddRequest
+
+from featured.add import add_featured
+from featured.remove import remove_featured
+from featured.list import list_featured
+from featured.model import FeaturedReferenceCreate
 
 from users.profile import get_profile
 from users.update import update_profile
@@ -79,6 +88,10 @@ async def lifespan(app):
 
 app = FastAPI(title="Ad Reference API", version="1.0.0", lifespan=lifespan)
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 _default_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -91,7 +104,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -189,13 +202,15 @@ def api_health():
 # ──────────────────────────────────────────────
 
 @app.post("/auth/register", status_code=201)
-def api_register(request: RegisterRequest):
-    return register(request)
+@limiter.limit("5/minute")
+def api_register(body: RegisterRequest, request: StarletteRequest):
+    return register(body)
 
 
 @app.post("/auth/login")
-def api_login(request: LoginRequest):
-    return login(request)
+@limiter.limit("10/minute")
+def api_login(body: LoginRequest, request: StarletteRequest):
+    return login(body)
 
 
 @app.post("/auth/logout")
@@ -309,6 +324,37 @@ async def api_delete_board(
     user: dict = Depends(get_user),
 ):
     return delete_board(board_id, user["user_id"])
+
+
+# ──────────────────────────────────────────────
+# Featured References
+# ──────────────────────────────────────────────
+
+@app.get("/featured-references")
+async def api_list_featured(
+    user: dict = Depends(get_user),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=50),
+    platform: Optional[str] = Query(default=None),
+    search: Optional[str] = Query(default=None),
+):
+    return list_featured(page, limit, platform, search)
+
+
+@app.post("/admin/featured-references", status_code=201)
+async def api_add_featured(
+    request: FeaturedReferenceCreate,
+    user: dict = Depends(get_admin_user),
+):
+    return add_featured(request.ad_id, user["user_id"], request.memo)
+
+
+@app.delete("/admin/featured-references/{ad_id}", status_code=204)
+async def api_remove_featured(
+    ad_id: str = Path(...),
+    user: dict = Depends(get_admin_user),
+):
+    remove_featured(ad_id)
 
 
 # ──────────────────────────────────────────────
@@ -448,14 +494,7 @@ async def api_list_monitored_domains(
             )
         else:
             cur.execute("SELECT * FROM monitored_domains ORDER BY created_at DESC")
-        cols = [desc[0] for desc in cur.description]
-        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-    for row in rows:
-        for k, v in row.items():
-            if hasattr(v, "isoformat"):
-                row[k] = v.isoformat()
-            elif isinstance(v, uuid.UUID):
-                row[k] = str(v)
+        rows = rows_to_dicts(cur)
     return {"domains": rows}
 
 
@@ -476,12 +515,7 @@ async def api_create_monitored_domain(
             (request.domain, request.platform, request.notes),
         )
         cols = [desc[0] for desc in cur.description]
-        row = dict(zip(cols, cur.fetchone()))
-    for k, v in row.items():
-        if hasattr(v, "isoformat"):
-            row[k] = v.isoformat()
-        elif isinstance(v, uuid.UUID):
-            row[k] = str(v)
+        row = serialize_row(cols, cur.fetchone())
     return row
 
 
@@ -516,12 +550,7 @@ async def api_update_monitored_domain(
             values,
         )
         cols = [desc[0] for desc in cur.description]
-        row = dict(zip(cols, cur.fetchone()))
-    for k, v in row.items():
-        if hasattr(v, "isoformat"):
-            row[k] = v.isoformat()
-        elif isinstance(v, uuid.UUID):
-            row[k] = str(v)
+        row = serialize_row(cols, cur.fetchone())
     return row
 
 
@@ -602,16 +631,7 @@ async def api_monitored_domain_ads(
             """,
             params + [limit, offset],
         )
-        cols = [desc[0] for desc in cur.description]
-        items = []
-        for r in cur.fetchall():
-            d = dict(zip(cols, r))
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-                elif isinstance(v, uuid.UUID):
-                    d[k] = str(v)
-            items.append(d)
+        items = rows_to_dicts(cur)
 
     return {
         "items": items,
@@ -637,15 +657,8 @@ async def api_monitored_domain_stats(
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="도메인을 찾을 수 없습니다.")
-        domain_info = dict(zip(cols, row))
+        domain_info = serialize_row(cols, row)
         domain_name = domain_info["domain"]
-
-        # Serialize domain_info
-        for k, v in domain_info.items():
-            if hasattr(v, "isoformat"):
-                domain_info[k] = v.isoformat()
-            elif isinstance(v, uuid.UUID):
-                domain_info[k] = str(v)
 
         # 2. total_ads (www. 접두사 무시 + domain NULL fallback)
         bare_domain = domain_name.replace("www.", "")
@@ -811,45 +824,36 @@ async def api_all_brand_stats(user: dict = Depends(get_user)):
         """, (brand_ids,))
         source_rows = cur.fetchall()
 
-        # 3. Ad counts per brand (single query)
+        # 3. Ad counts + last collected per brand (single query)
         cur.execute("""
-            SELECT brand_id, COUNT(*) FROM ads WHERE brand_id = ANY(%s::uuid[]) GROUP BY brand_id
+            SELECT brand_id, COUNT(*), MAX(COALESCE(saved_at, created_at))
+            FROM ads WHERE brand_id = ANY(%s::uuid[]) GROUP BY brand_id
         """, (brand_ids,))
-        total_map = {str(r[0]): r[1] for r in cur.fetchall()}
-
-        # 4. Ad counts by format per brand (single query)
-        cur.execute("""
-            SELECT brand_id, format, COUNT(*) FROM ads
-            WHERE brand_id = ANY(%s::uuid[]) AND format IS NOT NULL
-            GROUP BY brand_id, format
-        """, (brand_ids,))
-        format_map = {}
+        total_map = {}
+        last_collected_map = {}
         for r in cur.fetchall():
             bid = str(r[0])
-            if bid not in format_map:
-                format_map[bid] = {}
-            format_map[bid][r[1]] = r[2]
+            total_map[bid] = r[1]
+            last_collected_map[bid] = r[2].isoformat() if r[2] else None
 
-        # 4b. Ad counts by platform per brand (single query)
+        # 4. Format + platform breakdown per brand (single query)
         cur.execute("""
-            SELECT brand_id, platform, COUNT(*) FROM ads
-            WHERE brand_id = ANY(%s::uuid[]) AND platform IS NOT NULL
-            GROUP BY brand_id, platform
+            SELECT brand_id, format, platform, COUNT(*) FROM ads
+            WHERE brand_id = ANY(%s::uuid[])
+            GROUP BY brand_id, format, platform
         """, (brand_ids,))
+        format_map = {}
         platform_map = {}
         for r in cur.fetchall():
             bid = str(r[0])
-            if bid not in platform_map:
-                platform_map[bid] = {}
-            platform_map[bid][r[1]] = r[2]
-
-        # 4c. Last collected at per brand (single query)
-        cur.execute("""
-            SELECT brand_id, MAX(COALESCE(saved_at, created_at)) FROM ads
-            WHERE brand_id = ANY(%s::uuid[])
-            GROUP BY brand_id
-        """, (brand_ids,))
-        last_collected_map = {str(r[0]): r[1].isoformat() if r[1] else None for r in cur.fetchall()}
+            if r[1] is not None:
+                if bid not in format_map:
+                    format_map[bid] = {}
+                format_map[bid][r[1]] = format_map[bid].get(r[1], 0) + r[3]
+            if r[2] is not None:
+                if bid not in platform_map:
+                    platform_map[bid] = {}
+                platform_map[bid][r[2]] = platform_map[bid].get(r[2], 0) + r[3]
 
         # 5. Build response
         results = []
@@ -1126,16 +1130,7 @@ async def api_brand_ads(
             """,
             params + [limit, offset],
         )
-        cols = [desc[0] for desc in cur.description]
-        items = []
-        for r in cur.fetchall():
-            d = dict(zip(cols, r))
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-                elif isinstance(v, uuid.UUID):
-                    d[k] = str(v)
-            items.append(d)
+        items = rows_to_dicts(cur)
 
     return {
         "items": items,
@@ -1261,12 +1256,7 @@ async def api_brand_ads_timeline(
                 d["end_date"] = last_seen_at.date().isoformat() if hasattr(last_seen_at, "date") else str(last_seen_at)[:10]
             else:
                 d["end_date"] = None
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-                elif isinstance(v, uuid.UUID):
-                    d[k] = str(v)
-            items.append(d)
+            items.append({k: serialize_value(v) for k, v in d.items()})
 
     return {
         "items": items,
@@ -1378,17 +1368,6 @@ async def api_run_batch(
     return {"job_id": job_id, "status": "started", "domain": request.domain, "mode": request.mode}
 
 
-def _serialize_batch_row(row: dict) -> dict:
-    for k, v in row.items():
-        if hasattr(v, "isoformat"):
-            row[k] = v.isoformat()
-        elif isinstance(v, uuid.UUID):
-            row[k] = str(v)
-        elif isinstance(v, dict) or isinstance(v, list):
-            pass  # already JSON-compatible
-    return row
-
-
 @app.get("/batch/runs")
 async def api_list_batch_runs(
     user: dict = Depends(get_user),
@@ -1396,8 +1375,7 @@ async def api_list_batch_runs(
 ):
     with get_db() as (conn, cur):
         cur.execute("SELECT * FROM batch_runs ORDER BY started_at DESC LIMIT %s", (limit,))
-        cols = [desc[0] for desc in cur.description]
-        rows = [_serialize_batch_row(dict(zip(cols, row))) for row in cur.fetchall()]
+        rows = rows_to_dicts(cur)
     return {"runs": rows}
 
 
@@ -1409,7 +1387,7 @@ async def api_latest_batch_run(user: dict = Depends(get_user)):
         row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="배치 실행 기록이 없습니다.")
-    return _serialize_batch_row(dict(zip(cols, row)))
+    return serialize_row(cols, row)
 
 
 @app.get("/batch/runs/{run_id}")
@@ -1423,7 +1401,7 @@ async def api_get_batch_run(
         row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="배치 실행을 찾을 수 없습니다.")
-    return _serialize_batch_row(dict(zip(cols, row)))
+    return serialize_row(cols, row)
 
 
 # ──────────────────────────────────────────────
@@ -1438,7 +1416,12 @@ async def api_list_activity_logs(
     page: int = Query(default=1, ge=1),
 ):
     offset = (page - 1) * limit
-    return list_activity_logs(event_type=event_type, limit=limit, offset=offset)
+    # Admin sees all logs; regular users see only their own
+    with get_db() as (conn, cur):
+        cur.execute("SELECT role FROM users WHERE id = %s::uuid", (user["user_id"],))
+        row = cur.fetchone()
+    filter_user_id = None if row and row[0] == "admin" else user["user_id"]
+    return list_activity_logs(event_type=event_type, user_id=filter_user_id, limit=limit, offset=offset)
 
 
 # ──────────────────────────────────────────────

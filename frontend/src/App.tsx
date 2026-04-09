@@ -13,6 +13,7 @@ import { CompetitorsPage } from "@/pages/CompetitorsPage";
 import { CompetitorDetailPage } from "@/pages/CompetitorDetailPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { AdDetailPage } from "@/pages/AdDetailPage";
+import { FeaturedPage } from "@/pages/FeaturedPage";
 import NotFoundPage from "@/pages/NotFoundPage";
 
 function App() {
@@ -56,6 +57,16 @@ function App() {
               <ProtectedRoute>
                 <AppLayout>
                   <BoardsPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/featured"
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <FeaturedPage />
                 </AppLayout>
               </ProtectedRoute>
             }

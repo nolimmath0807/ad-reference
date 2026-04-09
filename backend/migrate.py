@@ -231,8 +231,13 @@ def migrate():
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
     """)
+    # activity_logs - add user_id column
+    cur.execute("ALTER TABLE activity_logs ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL")
+
     cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_type ON activity_logs(event_type)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_created ON activity_logs(created_at DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_user ON activity_logs(user_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_activity_logs_type_created ON activity_logs(event_type, created_at)")
 
     # 14. daily_brand_stats table
     cur.execute("""
@@ -320,6 +325,12 @@ def migrate():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_saved_at ON ads(saved_at)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_last_seen ON ads(last_seen_at)")
 
+    # Performance indexes: composite brand filtering
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ads_brand_id_platform ON ads(brand_id, platform)")
+
+    # Performance indexes: board_items sorting by added_at
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_board_items_added ON board_items(added_at DESC)")
+
     # Performance indexes: batch_runs sorting
     cur.execute("CREATE INDEX IF NOT EXISTS idx_batch_runs_started ON batch_runs(started_at DESC)")
 
@@ -331,6 +342,20 @@ def migrate():
 
     # 18. users table - add is_approved column
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN NOT NULL DEFAULT FALSE")
+
+    # 19. featured_references table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS featured_references (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            ad_id UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+            added_by UUID REFERENCES users(id) ON DELETE SET NULL,
+            added_at TIMESTAMPTZ DEFAULT NOW(),
+            memo TEXT,
+            UNIQUE(ad_id)
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_added_at ON featured_references(added_at DESC)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_ad_id ON featured_references(ad_id)")
 
     conn.commit()
     cur.close()
