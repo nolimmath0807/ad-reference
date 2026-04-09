@@ -175,6 +175,7 @@ export function CompetitorDetailPage() {
       landing_page_url: null,
       created_at: "",
       saved_at: null,
+      brand_name: null,
     };
     setSelectedAd(ad);
   };
