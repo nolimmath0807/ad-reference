@@ -387,7 +387,7 @@ async def api_remove_featured(
     ad_id: str = Path(...),
     user: dict = Depends(get_admin_user),
 ):
-    remove_featured(ad_id)
+    remove_featured(ad_id, str(user["user_id"]))
 
 
 # ──────────────────────────────────────────────

@@ -8,11 +8,11 @@ from fastapi import HTTPException
 from conn import get_db
 
 
-def remove_featured(ad_id: str) -> dict:
+def remove_featured(ad_id: str, user_id: str) -> dict:
     with get_db() as (conn, cur):
         cur.execute(
-            "DELETE FROM featured_references WHERE ad_id = %s::uuid RETURNING id",
-            (ad_id,),
+            "DELETE FROM featured_references WHERE ad_id = %s::uuid AND added_by = %s::uuid RETURNING id",
+            (ad_id, user_id),
         )
         row = cur.fetchone()
         if not row:
@@ -26,8 +26,8 @@ def remove_featured(ad_id: str) -> dict:
     return {"success": True}
 
 
-def main(ad_id: str) -> dict:
-    return remove_featured(ad_id)
+def main(ad_id: str, user_id: str) -> dict:
+    return remove_featured(ad_id, user_id)
 
 
 if __name__ == "__main__":
