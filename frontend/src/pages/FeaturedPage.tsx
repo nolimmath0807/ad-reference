@@ -305,6 +305,22 @@ export function FeaturedPage() {
                   onClick={() => handleAdClick(item.ad)}
                   className="group/card w-full overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md"
                 >
+                  {/* Advertiser - 카드 최상단 */}
+                  <div className="flex items-center gap-2 px-3.5 pt-3 pb-2">
+                    {item.ad.advertiser_avatar_url ? (
+                      <img
+                        src={item.ad.advertiser_avatar_url}
+                        alt={item.ad.advertiser_name}
+                        className="size-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                        {item.ad.advertiser_name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="truncate text-sm font-medium">{item.ad.advertiser_name}</span>
+                  </div>
+
                   {/* Thumbnail */}
                   <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                     <AdThumbnail
@@ -325,24 +341,6 @@ export function FeaturedPage() {
 
                   {/* Card body */}
                   <div className="space-y-2.5 p-3.5">
-                    {/* Advertiser */}
-                    <div className="flex items-center gap-2">
-                      {item.ad.advertiser_avatar_url ? (
-                        <img
-                          src={item.ad.advertiser_avatar_url}
-                          alt={item.ad.advertiser_name}
-                          className="size-6 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
-                          {item.ad.advertiser_name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
-                      <span className="truncate text-sm font-medium">
-                        {item.ad.advertiser_name}
-                      </span>
-                    </div>
-
                     {/* Ad copy */}
                     {item.ad.ad_copy && (
                       <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">

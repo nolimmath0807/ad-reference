@@ -174,6 +174,22 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore, featuredI
               onClick={() => onAdClick(ad)}
               className="w-full overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md"
             >
+              {/* Advertiser - 카드 최상단 */}
+              <div className="flex items-center gap-2 px-3.5 pt-3 pb-2">
+                {ad.advertiser_avatar_url ? (
+                  <img
+                    src={ad.advertiser_avatar_url}
+                    alt={ad.advertiser_name}
+                    className="size-6 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+                    {ad.advertiser_name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="truncate text-sm font-medium">{ad.advertiser_name}</span>
+              </div>
+
               {/* Thumbnail */}
               <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                 <AdThumbnail url={ad.thumbnail_url} alt={ad.advertiser_name} format={ad.format} />
@@ -192,22 +208,6 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore, featuredI
 
               {/* Card body */}
               <div className="space-y-2.5 p-3.5">
-                {/* Advertiser */}
-                <div className="flex items-center gap-2">
-                  {ad.advertiser_avatar_url ? (
-                    <img
-                      src={ad.advertiser_avatar_url}
-                      alt={ad.advertiser_name}
-                      className="size-6 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
-                      {ad.advertiser_name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="truncate text-sm font-medium">{ad.advertiser_name}</span>
-                </div>
-
                 {/* Ad copy */}
                 {ad.ad_copy && (
                   <p className="line-clamp-2 text-xs text-muted-foreground leading-relaxed">
