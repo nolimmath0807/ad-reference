@@ -65,21 +65,6 @@ function formatDate(dateStr: string | null): string {
   });
 }
 
-function isPlayableVideoUrl(url: string): boolean {
-  const lower = url.toLowerCase();
-  const videoExtensions = [".mp4", ".webm", ".mov", ".ogg"];
-  const videoHosts = [
-    "googlevideo.com",
-    "youtube.com",
-    "ytimg.com",
-    "googlesyndication.com",
-    "fbcdn.net",
-    "tiktokcdn.com",
-  ];
-  if (videoExtensions.some((ext) => lower.includes(ext))) return true;
-  if (videoHosts.some((host) => lower.includes(host))) return true;
-  return false;
-}
 
 function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com/embed/") || url.includes("youtube.com/watch?v=") || url.includes("youtu.be/");
@@ -116,12 +101,14 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
   const [isExtracting, setIsExtracting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [featuredLoading, setFeaturedLoading] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(false);
 
   useEffect(() => {
     if (open && ad) {
       setDetail(null);
       setIsLoading(true);
       setMediaError(false);
+      setVideoLoading(false);
       api.get<AdDetailResponse>(`/ads/${ad.id}`).then((data) => {
         setDetail(data);
         setIsLoading(false);
@@ -309,25 +296,24 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
                         {formatLabels[currentAd.format]}
                       </Badge>
                     </div>
-                  ) : currentAd.preview_url &&
-                    isYouTubeUrl(currentAd.preview_url) ? (
-                    <video
-                      src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
-                      controls
-                      className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
-                      poster={getImageUrl(currentAd.thumbnail_url)}
-                      onError={() => setMediaError(true)}
-                    />
-                  ) : currentAd.media_type === "video" &&
-                    currentAd.preview_url &&
-                    isPlayableVideoUrl(currentAd.preview_url) ? (
-                    <video
-                      src={currentAd.preview_url}
-                      controls
-                      className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
-                      poster={getImageUrl(currentAd.thumbnail_url)}
-                      onError={() => setMediaError(true)}
-                    />
+                  ) : currentAd.media_type === "video" && currentAd.preview_url ? (
+                    <div className="relative w-full">
+                      {videoLoading && (
+                        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-muted/80">
+                          <Loader2 className="size-8 animate-spin text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">영상 준비 중...</span>
+                        </div>
+                      )}
+                      <video
+                        src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
+                        controls
+                        className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
+                        poster={getImageUrl(currentAd.thumbnail_url)}
+                        onLoadStart={() => setVideoLoading(true)}
+                        onCanPlay={() => setVideoLoading(false)}
+                        onError={() => { setVideoLoading(false); setMediaError(true); }}
+                      />
+                    </div>
                   ) : (
                     <img
                       src={getImageUrl(currentAd.thumbnail_url)}
