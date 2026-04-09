@@ -13,6 +13,8 @@ interface AdGridProps {
   hasNext: boolean;
   onAdClick: (ad: Ad) => void;
   onLoadMore: () => void;
+  featuredIds?: Set<string>;
+  onFeaturedChange?: (adId: string) => void;
 }
 
 const platformColors: Record<string, string> = {
@@ -81,7 +83,7 @@ function AdCardSkeleton() {
   );
 }
 
-export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridProps) {
+export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore, featuredIds, onFeaturedChange }: AdGridProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -89,13 +91,20 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
 
   const handleAddToFeatured = async (ad: Ad, e: React.MouseEvent) => {
     e.stopPropagation();
+    const isFeatured = featuredIds?.has(ad.id);
+    if (isFeatured) {
+      toast.info("이미 Featured References에 추가된 광고입니다.");
+      return;
+    }
     setFeaturedLoadingId(ad.id);
     try {
       await api.post("/admin/featured-references", { ad_id: ad.id });
       toast.success("Featured References에 추가되었습니다.");
+      onFeaturedChange?.(ad.id);
     } catch (err: any) {
       if (err?.status === 409 || err?.response?.status === 409) {
         toast.info("이미 Featured References에 추가된 광고입니다.");
+        onFeaturedChange?.(ad.id);
       } else {
         toast.error("추가에 실패했습니다.");
       }
@@ -146,16 +155,21 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore }: AdGridP
       <div className="grid gap-4 grid-cols-[repeat(auto-fill,minmax(220px,1fr))]">
         {ads.map((ad) => (
           <div key={ad.id} className="relative group">
-            {isAdmin && (
-              <button
-                onClick={(e) => handleAddToFeatured(ad, e)}
-                disabled={featuredLoadingId === ad.id}
-                title="Featured에 추가"
-                className="absolute right-2 top-2 z-10 flex size-7 items-center justify-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow transition-all hover:bg-brand-primary hover:text-white group-hover:opacity-100 disabled:opacity-50"
-              >
-                <Star className="size-3.5" />
-              </button>
-            )}
+            {isAdmin && (() => {
+              const isFeatured = featuredIds?.has(ad.id) ?? false;
+              return (
+                <button
+                  onClick={(e) => handleAddToFeatured(ad, e)}
+                  disabled={featuredLoadingId === ad.id}
+                  title="Featured에 추가"
+                  className={isFeatured
+                    ? "absolute right-2 top-2 z-10 flex size-7 items-center justify-center rounded-full shadow transition-all bg-amber-400 text-white"
+                    : "absolute right-2 top-2 z-10 flex size-7 items-center justify-center rounded-full bg-background/90 text-muted-foreground opacity-0 shadow transition-all hover:bg-brand-primary hover:text-white group-hover:opacity-100 disabled:opacity-50"}
+                >
+                  <Star className={isFeatured ? "size-3.5 fill-current" : "size-3.5"} />
+                </button>
+              );
+            })()}
             <button
               onClick={() => onAdClick(ad)}
               className="w-full overflow-hidden rounded-xl border bg-card text-left transition-shadow hover:shadow-md"

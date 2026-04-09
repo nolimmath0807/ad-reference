@@ -37,6 +37,8 @@ interface AdDetailModalProps {
   ad: Ad | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  featuredIds?: Set<string>;
+  onFeaturedChange?: (adId: string) => void;
 }
 
 const platformStyles: Record<PlatformType, { label: string; className: string }> = {
@@ -116,7 +118,7 @@ function getDownloadFilename(ad: Ad): string {
   return `${name}_${date}_${shortId}.${ext}`;
 }
 
-export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
+export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedChange }: AdDetailModalProps) {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const [detail, setDetail] = useState<AdDetailResponse | null>(null);
@@ -165,13 +167,20 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
 
   const handleAddToFeatured = async () => {
     if (!currentAd) return;
+    const isFeatured = featuredIds?.has(currentAd.id) ?? false;
+    if (isFeatured) {
+      toast.info("이미 Featured References에 추가된 광고입니다.");
+      return;
+    }
     setFeaturedLoading(true);
     try {
       await api.post("/admin/featured-references", { ad_id: currentAd.id });
       toast.success("Featured References에 추가되었습니다.");
+      onFeaturedChange?.(currentAd.id);
     } catch (err: any) {
       if (err?.status === 409 || err?.response?.status === 409) {
         toast.info("이미 Featured References에 추가된 광고입니다.");
+        onFeaturedChange?.(currentAd.id);
       } else {
         toast.error("추가에 실패했습니다.");
       }
@@ -562,11 +571,21 @@ export function AdDetailModal({ ad, open, onOpenChange }: AdDetailModalProps) {
                     <Bookmark className="size-4" />
                     Save to Board
                   </Button>
-                  {isAdmin && (
-                    <Button variant="outline" size="icon" onClick={handleAddToFeatured} disabled={featuredLoading} title="Featured에 추가">
-                      <Star className="size-4" />
-                    </Button>
-                  )}
+                  {isAdmin && (() => {
+                    const isFeaturedCurrent = featuredIds?.has(currentAd?.id ?? "") ?? false;
+                    return (
+                      <Button
+                        variant={isFeaturedCurrent ? "default" : "outline"}
+                        size="icon"
+                        onClick={handleAddToFeatured}
+                        disabled={featuredLoading}
+                        title="Featured에 추가"
+                        className={isFeaturedCurrent ? "bg-amber-400 hover:bg-amber-500 text-white" : ""}
+                      >
+                        <Star className={isFeaturedCurrent ? "size-4 fill-current" : "size-4"} />
+                      </Button>
+                    );
+                  })()}
                   <Button variant="outline" size="icon" onClick={handleCopyLink}>
                     <Link2 className="size-4" />
                   </Button>

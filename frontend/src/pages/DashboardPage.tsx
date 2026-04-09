@@ -21,9 +21,20 @@ export function DashboardPage() {
   const [ads, setAds] = useState<Ad[]>([]);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [featuredIds, setFeaturedIds] = useState<Set<string>>(new Set());
 
   const requestIdRef = useRef(0);
   const loadingMoreRef = useRef(false);
+
+  useEffect(() => {
+    api.get<{ items: { ad_id: string }[] }>("/featured-references", { limit: 500 })
+      .then((data) => setFeaturedIds(new Set(data.items.map((i) => i.ad_id))))
+      .catch(() => {});
+  }, []);
+
+  const handleFeaturedAdd = (adId: string) => {
+    setFeaturedIds((prev) => new Set([...prev, adId]));
+  };
 
   const fetchAds = useCallback(async (params: AdSearchParams, append = false) => {
     if (append) {
@@ -153,6 +164,8 @@ export function DashboardPage() {
         hasNext={hasNext}
         onAdClick={handleAdClick}
         onLoadMore={handleLoadMore}
+        featuredIds={featuredIds}
+        onFeaturedChange={handleFeaturedAdd}
       />
 
       <AdDetailModal
@@ -161,6 +174,8 @@ export function DashboardPage() {
         onOpenChange={(open) => {
           if (!open) setSelectedAd(null);
         }}
+        featuredIds={featuredIds}
+        onFeaturedChange={handleFeaturedAdd}
       />
     </div>
   );
