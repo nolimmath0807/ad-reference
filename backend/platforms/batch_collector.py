@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import os
-import signal
+import threading
 import time
 import uuid
 from datetime import datetime
@@ -29,8 +29,14 @@ def _sanitize_s3_key(value: str) -> str:
     return value
 
 
-def _timeout_handler(signum, frame):
-    raise TimeoutError(f"배치 실행 {BATCH_TIMEOUT}초 초과")
+# threading.Timer 기반 타임아웃 플래그 (signal.SIGALRM은 Railway 컨테이너에서 Playwright I/O 블로킹 중 작동 안 함)
+_timeout_flag = False
+
+
+def _set_timeout_flag():
+    global _timeout_flag
+    _timeout_flag = True
+    logger.error(f"배치 타임아웃 플래그 설정: {BATCH_TIMEOUT}초 초과")
 
 
 def _upload_media(ad, s3_prefix: str) -> None:
@@ -150,14 +156,23 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
                 ad.domain = source_value
             ad.brand_id = brand_id
 
-        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        # S3 업로드: 만료되는 CDN URL을 영구 보관 (실패 시 원본 URL 유지)
         if is_s3_configured():
             s3_prefix = f"ads/{platform}/{_sanitize_s3_key(source_value)}"
             for ad in ads:
+                orig_thumbnail = ad.thumbnail_url
+                orig_preview = ad.preview_url
                 try:
                     _upload_media(ad, s3_prefix)
+                    # S3 업로드 후 URL이 None이 되었으면 원본 복원
+                    if orig_thumbnail and not ad.thumbnail_url:
+                        ad.thumbnail_url = orig_thumbnail
+                    if orig_preview and not ad.preview_url:
+                        ad.preview_url = orig_preview
                 except Exception as e:
-                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+                    logger.error(f"S3 업로드 실패 (원본 URL 유지): {type(e).__name__}: {e}")
+                    ad.thumbnail_url = orig_thumbnail
+                    ad.preview_url = orig_preview
 
         # Clean up browser cookies from raw_data before DB insert
         for ad in ads:
@@ -191,8 +206,8 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
             existing_source_ids = set()
             with get_db() as (conn, cur):
                 cur.execute(
-                    "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta'",
-                    (brand_id,),
+                    "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta' AND domain = %s",
+                    (brand_id, source_value),
                 )
                 existing_source_ids = {row[0] for row in cur.fetchall()}
 
@@ -222,8 +237,8 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
             existing_source_ids = set()
             with get_db() as (conn, cur):
                 cur.execute(
-                    "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta'",
-                    (brand_id,),
+                    "SELECT source_id FROM ads WHERE brand_id = %s AND platform = 'meta' AND domain = %s",
+                    (brand_id, source_value),
                 )
                 existing_source_ids = {row[0] for row in cur.fetchall()}
 
@@ -243,12 +258,15 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
     elif platform == "tiktok" and source_type == "keyword":
         logger.info(f"TikTok scraping not yet implemented for: {source_value}")
 
-    # full 모드에서만 종료 마킹 (incremental은 일부만 스캔하므로 부적합)
+    # full 모드에서만 종료 마킹
+    # NOTE: incremental 모드에서는 일부만 스캔하므로 mark_unseen 호출 시 false positive 위험 → 호출하지 않음
     if mode == "full":
         from platforms.scrape_worker import mark_unseen_ads_as_ended
         ended = mark_unseen_ads_as_ended(brand_id, platform, scrape_started_at)
-        if ended > 0:
-            logger.info(f"[{source['brand_name']}:{platform}:{source_value}] {ended}건 광고 종료 처리")
+        logger.info(
+            f"[{source['brand_name']}:{platform}:{source_value}] "
+            f"종료 마킹: {ended}건 (scrape_started_at={scrape_started_at.isoformat()})"
+        )
 
     result.duration_seconds = round(time.monotonic() - start_time, 1)
     logger.info(
@@ -267,6 +285,19 @@ def scrape_source(source: dict, mode: str = "full", browser=None) -> BrandSource
                 "platform": platform,
                 "ads_new": result.ads_new,
                 "ads_scraped": result.ads_scraped,
+            },
+        )
+    elif result.ads_scraped == 0:
+        log_activity(
+            event_type="collection",
+            event_subtype="no_ads_found",
+            title=f"No ads found from {source.get('brand_name', '')}",
+            message=f"Platform: {platform}, Source: {source_value}",
+            metadata={
+                "brand_name": source.get("brand_name", ""),
+                "platform": platform,
+                "ads_new": 0,
+                "ads_scraped": 0,
             },
         )
     if result.ads_new > 0 or result.ads_updated > 0:
@@ -353,14 +384,22 @@ def scrape_domain_fully(domain: str, browser=None) -> DomainScrapeResult:
             if not ad.domain:
                 ad.domain = domain
 
-        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        # S3 업로드: 만료되는 CDN URL을 영구 보관 (실패 시 원본 URL 유지)
         if is_s3_configured():
             s3_prefix = f"ads/google/{_sanitize_s3_key(domain)}"
             for ad in ads:
+                orig_thumbnail = ad.thumbnail_url
+                orig_preview = ad.preview_url
                 try:
                     _upload_media(ad, s3_prefix)
+                    if orig_thumbnail and not ad.thumbnail_url:
+                        ad.thumbnail_url = orig_thumbnail
+                    if orig_preview and not ad.preview_url:
+                        ad.preview_url = orig_preview
                 except Exception as e:
-                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+                    logger.error(f"S3 업로드 실패 (원본 URL 유지): {type(e).__name__}: {e}")
+                    ad.thumbnail_url = orig_thumbnail
+                    ad.preview_url = orig_preview
 
         stats = upsert_ads_batch(ads)
         result.ads_scraped += len(ads)
@@ -398,14 +437,22 @@ def scrape_domain_incremental(domain: str, browser=None) -> DomainScrapeResult:
             if not ad.domain:
                 ad.domain = domain
 
-        # S3 업로드: 만료되는 CDN URL을 영구 보관
+        # S3 업로드: 만료되는 CDN URL을 영구 보관 (실패 시 원본 URL 유지)
         if is_s3_configured():
             s3_prefix = f"ads/google/{_sanitize_s3_key(domain)}"
             for ad in ads:
+                orig_thumbnail = ad.thumbnail_url
+                orig_preview = ad.preview_url
                 try:
                     _upload_media(ad, s3_prefix)
+                    if orig_thumbnail and not ad.thumbnail_url:
+                        ad.thumbnail_url = orig_thumbnail
+                    if orig_preview and not ad.preview_url:
+                        ad.preview_url = orig_preview
                 except Exception as e:
-                    logger.warning(f"S3 업로드 실패 (계속 진행): {type(e).__name__}: {e}")
+                    logger.error(f"S3 업로드 실패 (원본 URL 유지): {type(e).__name__}: {e}")
+                    ad.thumbnail_url = orig_thumbnail
+                    ad.preview_url = orig_preview
 
         stats = upsert_ads_batch(ads)
         result.ads_scraped += len(ads)
@@ -459,6 +506,12 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
 
     try:
         for idx, src in enumerate(brand_sources):
+            # 타임아웃 플래그 체크: graceful exit
+            if _timeout_flag:
+                logger.error(f"타임아웃 플래그 감지, 배치 중단 ({idx}/{len(brand_sources)} 완료)")
+                errors.append(f"TIMEOUT: 배치 {BATCH_TIMEOUT}초 초과로 중단 ({idx}/{len(brand_sources)} 완료)")
+                break
+
             # 주기적 브라우저 재시작으로 메모리 누적 방지
             if idx > 0 and idx % BROWSER_RESTART_INTERVAL == 0:
                 try:
@@ -522,12 +575,21 @@ def _run_brand_sources_batch(run_id: str, brand_sources: list[dict], mode: str) 
         pw.stop()
         logger.info("공유 브라우저 종료")
 
+    # 에러율 임계치 체크: 50% 이상 실패 시 partial_failure
+    error_rate = len(errors) / len(brand_sources) if brand_sources else 0
+    partial_failure = error_rate >= 0.5
+    if partial_failure:
+        logger.error(
+            f"에러율 {error_rate:.0%} ({len(errors)}/{len(brand_sources)}) — partial_failure 마킹"
+        )
+
     return {
         "total_scraped": total_scraped,
         "total_new": total_new,
         "total_updated": total_updated,
         "domain_results": domain_results,
         "errors": errors,
+        "partial_failure": partial_failure,
     }
 
 
@@ -547,6 +609,12 @@ def _run_legacy_domains_batch(run_id: str, domains: list[MonitoredDomain], mode:
 
     try:
         for idx, d in enumerate(domains):
+            # 타임아웃 플래그 체크: graceful exit
+            if _timeout_flag:
+                logger.error(f"타임아웃 플래그 감지, 배치 중단 ({idx}/{len(domains)} 완료)")
+                errors.append(f"TIMEOUT: 배치 {BATCH_TIMEOUT}초 초과로 중단 ({idx}/{len(domains)} 완료)")
+                break
+
             # 주기적 브라우저 재시작으로 메모리 누적 방지
             if idx > 0 and idx % BROWSER_RESTART_INTERVAL == 0:
                 try:
@@ -688,8 +756,11 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
 
             run_id = create_batch_run(trigger_type=trigger_type)
 
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(BATCH_TIMEOUT)
+    global _timeout_flag
+    _timeout_flag = False
+    timeout_timer = threading.Timer(BATCH_TIMEOUT, _set_timeout_flag)
+    timeout_timer.daemon = True
+    timeout_timer.start()
 
     try:
         if domain:
@@ -709,7 +780,14 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
         errors = batch_result["errors"]
 
         # 최종 상태 업데이트
-        final_status = BatchRunStatus.completed
+        if batch_result.get("partial_failure"):
+            final_status = BatchRunStatus.partial_failure if hasattr(BatchRunStatus, "partial_failure") else BatchRunStatus.completed
+            logger.warning("에러율 50% 이상: partial_failure 상태로 마킹")
+        elif _timeout_flag:
+            final_status = BatchRunStatus.completed  # timeout은 graceful exit이므로 completed
+            logger.warning("타임아웃으로 조기 종료했으나 부분 결과는 저장")
+        else:
+            final_status = BatchRunStatus.completed
         for _retry in range(3):
             try:
                 update_batch_run(
@@ -759,28 +837,11 @@ def run_daily_batch(trigger_type: str = "manual", domain: str = "", dry_run: boo
             f"scraped={total_scraped}, new={total_new}, updated={total_updated}, "
             f"errors={len(errors)}"
         )
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+        timeout_timer.cancel()
         return summary
 
-    except TimeoutError as e:
-        logger.error(f"배치 타임아웃: {e}")
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
-        try:
-            update_batch_run(
-                run_id,
-                status="timeout",
-                finished_at=datetime.now(),
-                errors=[f"TIMEOUT: {e}"],
-            )
-        except Exception:
-            logger.error("타임아웃 상태 업데이트 실패")
-        raise
-
     except Exception as e:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old_handler)
+        timeout_timer.cancel()
         logger.error(f"배치 실행 중 크래시: {type(e).__name__}: {e}")
         try:
             update_batch_run(

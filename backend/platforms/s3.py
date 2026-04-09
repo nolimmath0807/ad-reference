@@ -74,7 +74,7 @@ def upload_from_url(url: str, s3_key_prefix: str, cookies: dict[str, str] | None
         content_length = int(head_resp.headers.get("content-length", "0"))
         content_type = head_resp.headers.get("content-type", "").split(";")[0].strip()
         if content_length > _MAX_FILE_SIZE:
-            logger.warning(
+            logger.error(
                 f"파일 크기 초과 스킵: {content_length:,} bytes > {_MAX_FILE_SIZE:,}, url={url[:100]}"
             )
             return None
@@ -103,16 +103,16 @@ def upload_from_url(url: str, s3_key_prefix: str, cookies: dict[str, str] | None
             # GET 응답의 Content-Length도 체크 (HEAD 실패 시 fallback)
             get_content_length = int(response.headers.get("content-length", "0"))
             if get_content_length > _MAX_FILE_SIZE:
-                logger.warning(
-                    f"파일 크기 초과 스킵: {get_content_length:,} bytes > {_MAX_FILE_SIZE:,}, url={url[:100]}"
+                logger.error(
+                    f"파일 크기 초과 스킵 (GET Content-Length): {get_content_length:,} bytes > {_MAX_FILE_SIZE:,}, url={url[:100]}"
                 )
                 return None
 
             for chunk in response.iter_bytes(chunk_size=1024 * 64):
                 downloaded_size += len(chunk)
                 if downloaded_size > _MAX_FILE_SIZE:
-                    logger.warning(
-                        f"다운로드 중 크기 초과 중단: {downloaded_size:,} bytes > {_MAX_FILE_SIZE:,}, url={url[:100]}"
+                    logger.error(
+                        f"다운로드 중 크기 초과 중단 (스트리밍): {downloaded_size:,} bytes > {_MAX_FILE_SIZE:,}, url={url[:100]}"
                     )
                     return None
                 chunks.append(chunk)

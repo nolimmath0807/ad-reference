@@ -127,6 +127,7 @@ def upsert_ads_batch(ads: list[PlatformAd], brand_id: str | None = None) -> dict
     Returns: {"new": int, "updated": int, "total": int}
     """
     if not ads:
+        logger.info(f"upsert_ads_batch 호출: 0건 입력 (brand_id={brand_id}), 스킵")
         return {"new": 0, "updated": 0, "total": 0}
 
     new = 0

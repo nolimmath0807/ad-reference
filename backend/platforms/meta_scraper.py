@@ -325,8 +325,8 @@ def _scrape_meta_url(url: str, headless: bool = True, max_results: int = 500, ex
                 break  # No more content to load
             prev_height = curr_height
 
-            # 증분 모드: 매 3스크롤마다 기존 광고 존재 여부 체크 → 조기 중단
-            if existing_source_ids and (scroll_i + 1) % 3 == 0:
+            # 증분 모드: 매 스크롤마다 기존 광고 존재 여부 체크 → 조기 중단
+            if existing_source_ids:
                 current_raw = extract_ads(page)
                 if len(current_raw) > prev_ad_count:
                     new_raw = current_raw[prev_ad_count:]

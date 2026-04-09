@@ -1,3 +1,4 @@
+import fcntl
 import logging
 import os
 import subprocess
@@ -12,50 +13,69 @@ _batch_processes: dict[str, dict] = {}
 
 _backend_dir = str(Path(__file__).resolve().parent.parent)
 _logs_dir = Path(_backend_dir) / "logs"
+_lock_path = "/tmp/ad-reference-batch.lock"
 
 
-def start_batch_subprocess(mode: str, trigger_type: str, domain: str = "") -> str:
-    job_id = uuid.uuid4().hex[:12]
+def start_batch_subprocess(mode: str, trigger_type: str, domain: str = "") -> str | None:
+    # File-based lock to prevent TOCTOU race between has_running_batch() and actual start
+    lock_fd = open(_lock_path, "w")
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        lock_fd.close()
+        logger.warning("Another batch is starting (lock held), skipping")
+        return None
 
-    cmd = [
-        sys.executable, "-m", "platforms.batch_collector",
-        f"--mode={mode}",
-        f"--trigger-type={trigger_type}",
-    ]
-    if domain:
-        cmd.append(f"--domain={domain}")
+    try:
+        # Double-check inside lock
+        if has_running_batch():
+            logger.warning("Running batch detected inside lock, skipping")
+            return None
 
-    logger.info(f"Starting batch subprocess: job_id={job_id}, cmd={cmd}")
+        job_id = uuid.uuid4().hex[:12]
 
-    _logs_dir.mkdir(exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_file_path = _logs_dir / f"batch_{job_id}_{timestamp}.log"
-    log_fh = open(log_file_path, "w")
+        cmd = [
+            sys.executable, "-m", "platforms.batch_collector",
+            f"--mode={mode}",
+            f"--trigger-type={trigger_type}",
+        ]
+        if domain:
+            cmd.append(f"--domain={domain}")
 
-    env = {**os.environ, "DB_POOL_MAX": "5", "DB_POOL_MIN": "1", "DB_CLOSE_ON_RETURN": "1"}
+        logger.info(f"Starting batch subprocess: job_id={job_id}, cmd={cmd}")
 
-    proc = subprocess.Popen(
-        cmd,
-        cwd=_backend_dir,
-        stdout=log_fh,
-        stderr=subprocess.STDOUT,
-        env=env,
-    )
+        _logs_dir.mkdir(exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file_path = _logs_dir / f"batch_{job_id}_{timestamp}.log"
+        log_fh = open(log_file_path, "w")
 
-    _batch_processes[job_id] = {
-        "job_id": job_id,
-        "pid": proc.pid,
-        "process": proc,
-        "mode": mode,
-        "trigger_type": trigger_type,
-        "domain": domain,
-        "log_file": str(log_file_path),
-        "_log_fh": log_fh,
-    }
+        env = {**os.environ, "DB_POOL_MAX": "10", "DB_POOL_MIN": "1", "DB_CLOSE_ON_RETURN": "1"}
 
-    logger.info(f"Batch subprocess started: job_id={job_id}, pid={proc.pid}")
-    _cleanup_finished_processes()
-    return job_id
+        proc = subprocess.Popen(
+            cmd,
+            cwd=_backend_dir,
+            stdout=log_fh,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+
+        _batch_processes[job_id] = {
+            "job_id": job_id,
+            "pid": proc.pid,
+            "process": proc,
+            "mode": mode,
+            "trigger_type": trigger_type,
+            "domain": domain,
+            "log_file": str(log_file_path),
+            "_log_fh": log_fh,
+        }
+
+        logger.info(f"Batch subprocess started: job_id={job_id}, pid={proc.pid}")
+        _cleanup_finished_processes()
+        return job_id
+    finally:
+        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        lock_fd.close()
 
 
 def get_batch_process_status(job_id: str) -> dict:

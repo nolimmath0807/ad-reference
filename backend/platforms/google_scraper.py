@@ -663,10 +663,19 @@ def _collect_ads_for_advertiser(
 
         logger.info(f"  [{i+1}/{len(creative_links)}] 상세 페이지: {href[:80]}")
 
-        try:
-            page.goto(detail_url, wait_until="domcontentloaded", timeout=30000)
-        except Exception as e:
-            logger.warning(f"  [{i+1}/{len(creative_links)}] 상세 페이지 로드 실패, skip: {e}")
+        loaded = False
+        for attempt in range(3):
+            try:
+                page.goto(detail_url, wait_until="domcontentloaded", timeout=30000)
+                loaded = True
+                break
+            except Exception as e:
+                if attempt < 2:
+                    logger.warning(f"  [{i+1}/{len(creative_links)}] 상세 페이지 로드 재시도 ({attempt+1}/3): {e}")
+                    time.sleep(2)
+                else:
+                    logger.warning(f"  [{i+1}/{len(creative_links)}] 상세 페이지 로드 최종 실패, skip: {e}")
+        if not loaded:
             continue
         time.sleep(3)
 
@@ -1012,8 +1021,8 @@ def scrape_google_ads_by_domain(
             if i > 0 and i % CONTEXT_RESTART_INTERVAL == 0:
                 try:
                     context.close()
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Context close failed: {e}")
                 context = browser.new_context(
                     viewport={"width": 1920, "height": 1080},
                     locale="ko-KR",
@@ -1028,10 +1037,19 @@ def scrape_google_ads_by_domain(
 
             logger.info(f"  [{i+1}/{len(ad_links)}] 상세 페이지: {href[:80]}")
 
-            try:
-                page.goto(detail_url, wait_until="domcontentloaded", timeout=30000)
-            except Exception as e:
-                logger.warning(f"  [{i+1}/{len(ad_links)}] 상세 페이지 로드 실패, skip: {e}")
+            loaded = False
+            for attempt in range(3):
+                try:
+                    page.goto(detail_url, wait_until="domcontentloaded", timeout=30000)
+                    loaded = True
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        logger.warning(f"  [{i+1}/{len(ad_links)}] 상세 페이지 로드 재시도 ({attempt+1}/3): {e}")
+                        time.sleep(2)
+                    else:
+                        logger.warning(f"  [{i+1}/{len(ad_links)}] 상세 페이지 로드 최종 실패, skip: {e}")
+            if not loaded:
                 continue
             time.sleep(3)
 
