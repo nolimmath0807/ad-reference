@@ -381,6 +381,18 @@ def migrate():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_added_at ON featured_references(added_at DESC)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_featured_references_ad_id ON featured_references(ad_id)")
 
+    # 20. ad_comments table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS ad_comments (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            ad_id UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ad_comments_ad_id ON ad_comments(ad_id, created_at DESC)")
+
     conn.commit()
     cur.close()
     conn.close()

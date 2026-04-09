@@ -39,6 +39,11 @@ from ads.extract_script import extract_script, get_script
 from ads.video_proxy import get_video_path, get_preview_url
 from ads.embedding import embed_ads_batch
 
+from comments.list import list_comments
+from comments.create import create_comment
+from comments.delete import delete_comment
+from comments.model import CommentCreate
+
 from boards.create import create_board
 from boards.list import list_boards
 from boards.detail import get_board_detail
@@ -1344,6 +1349,32 @@ async def api_get_ad_video(
         return RedirectResponse(url=preview_url)
 
     raise HTTPException(status_code=404, detail="Video not found")
+
+
+@app.get("/ads/{ad_id}/comments")
+async def get_ad_comments(
+    ad_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    return list_comments(ad_id)
+
+
+@app.post("/ads/{ad_id}/comments", status_code=201)
+async def post_ad_comment(
+    ad_id: str = Path(...),
+    body: CommentCreate = Body(...),
+    user: dict = Depends(get_user),
+):
+    return create_comment(ad_id, str(user["user_id"]), body.content)
+
+
+@app.delete("/ads/{ad_id}/comments/{comment_id}", status_code=204)
+async def delete_ad_comment(
+    ad_id: str = Path(...),
+    comment_id: str = Path(...),
+    user: dict = Depends(get_user),
+):
+    delete_comment(comment_id, str(user["user_id"]), user.get("role") == "admin")
 
 
 # ──────────────────────────────────────────────

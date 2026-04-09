@@ -28,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { api } from "@/lib/api-client";
 import { toast } from "sonner";
 import { AdMetrics } from "@/components/ad/AdMetrics";
+import { AdComments } from "@/components/ad/AdComments";
 import { SimilarAds } from "@/components/ad/SimilarAds";
 import { SaveToBoardDialog } from "@/components/ad/SaveToBoardDialog";
 import type { Ad, AdDetailResponse, AdScriptResponse, PlatformType, FormatType } from "@/types/ad";
@@ -589,6 +590,11 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
                   <Button variant="outline" size="icon" onClick={handleCopyLink}>
                     <Link2 className="size-4" />
                   </Button>
+                </div>
+
+                {/* Comments */}
+                <div className="border-t pt-4">
+                  <AdComments adId={currentAd.id} />
                 </div>
               </div>
             </div>
