@@ -368,17 +368,6 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
                       )}
                       다운로드
                     </button>
-                    {currentAd.preview_url && isYouTubeUrl(currentAd.preview_url) && (
-                      <a
-                        href={getYouTubeWatchUrl(currentAd.preview_url)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        YouTube에서 보기
-                        <ExternalLink className="size-3" />
-                      </a>
-                    )}
                   </div>
                 )}
               </div>
