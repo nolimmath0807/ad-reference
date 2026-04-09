@@ -85,21 +85,7 @@ function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com/embed/") || url.includes("youtube.com/watch?v=") || url.includes("youtu.be/");
 }
 
-function getYouTubeVideoId(url: string): string | null {
-  const embedMatch = url.match(/youtube\.com\/embed\/([a-zA-Z0-9_-]+)/);
-  if (embedMatch) return embedMatch[1];
-  const watchMatch = url.match(/youtube\.com\/watch\?v=([a-zA-Z0-9_-]+)/);
-  if (watchMatch) return watchMatch[1];
-  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]+)/);
-  if (shortMatch) return shortMatch[1];
-  return null;
-}
 
-function getYouTubeWatchUrl(url: string): string {
-  const videoId = getYouTubeVideoId(url);
-  if (videoId) return `https://www.youtube.com/watch?v=${videoId}`;
-  return url;
-}
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
