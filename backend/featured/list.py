@@ -60,7 +60,7 @@ def list_featured(
                      a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
                      a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
                      a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at
-            ORDER BY (COUNT(fr.id) * 86400 + EXTRACT(EPOCH FROM MAX(fr.added_at))) DESC
+            ORDER BY (COUNT(fr.id) * 86400 + EXTRACT(EPOCH FROM a.saved_at)) DESC
             LIMIT %s OFFSET %s
             """,
             params + [limit, offset],
