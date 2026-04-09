@@ -49,6 +49,7 @@ class Ad(BaseModel):
     landing_page_url: Optional[str] = None
     created_at: datetime
     saved_at: Optional[datetime] = None
+    brand_name: Optional[str] = None
 
 
 class AdSearchResponse(BaseModel):

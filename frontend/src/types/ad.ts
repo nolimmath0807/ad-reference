@@ -24,6 +24,7 @@ export interface Ad {
   landing_page_url: string | null;
   created_at: string;
   saved_at: string | null;
+  brand_name: string | null;
 }
 
 export interface AdSearchParams {

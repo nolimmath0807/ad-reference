@@ -184,10 +184,10 @@ export function AdGrid({ ads, loading, hasNext, onAdClick, onLoadMore, featuredI
                   />
                 ) : (
                   <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
-                    {ad.advertiser_name.charAt(0).toUpperCase()}
+                    {(ad.brand_name || ad.advertiser_name).charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="truncate text-sm font-medium">{ad.advertiser_name}</span>
+                <span className="truncate text-sm font-medium">{ad.brand_name || ad.advertiser_name}</span>
               </div>
 
               {/* Thumbnail */}

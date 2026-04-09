@@ -29,7 +29,7 @@ def list_featured(
     with get_db() as (conn, cur):
         # COUNT는 ad 단위 (GROUP BY ad_id)
         cur.execute(
-            f"SELECT COUNT(DISTINCT fr.ad_id) FROM featured_references fr JOIN ads a ON fr.ad_id = a.id {where_clause}",
+            f"SELECT COUNT(DISTINCT fr.ad_id) FROM featured_references fr JOIN ads a ON fr.ad_id = a.id LEFT JOIN brands b ON a.brand_id = b.id {where_clause}",
             params,
         )
         total = cur.fetchone()[0]
@@ -50,16 +50,19 @@ def list_featured(
                 a.id, a.platform, a.format, a.advertiser_name, a.advertiser_handle,
                 a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
                 a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
-                a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at
+                a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at,
+                b.brand_name
             FROM featured_references fr
             JOIN ads a ON fr.ad_id = a.id
             LEFT JOIN users u ON fr.added_by = u.id
+            LEFT JOIN brands b ON a.brand_id = b.id
             {where_clause}
             GROUP BY fr.ad_id,
                      a.id, a.platform, a.format, a.advertiser_name, a.advertiser_handle,
                      a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
                      a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
-                     a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at
+                     a.start_date, a.end_date, a.tags, a.landing_page_url, a.created_at, a.saved_at,
+                     b.brand_name
             ORDER BY (COUNT(fr.id) * 86400 + EXTRACT(EPOCH FROM a.saved_at)) DESC
             LIMIT %s OFFSET %s
             """,
@@ -90,6 +93,7 @@ def list_featured(
             landing_page_url=row[20],
             created_at=row[21],
             saved_at=row[22],
+            brand_name=row[23],
         )
         curators_raw = row[2] if row[2] else []
         curators = []

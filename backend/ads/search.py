@@ -37,6 +37,7 @@ def _row_to_ad(row: tuple, col_names: list[str]) -> Ad:
         landing_page_url=d.get("landing_page_url"),
         created_at=d["created_at"],
         saved_at=d.get("saved_at"),
+        brand_name=d.get("brand_name"),
     )
 
 
@@ -168,6 +169,7 @@ def _dict_to_ad(d: dict) -> Ad:
         landing_page_url=d.get("landing_page_url"),
         created_at=d["created_at"],
         saved_at=d.get("saved_at"),
+        brand_name=d.get("brand_name"),
     )
 
 
@@ -288,20 +290,21 @@ async def search_ads(
     order = _sort_clause(sort)
     offset = (page - 1) * limit
 
-    with get_db() as (conn, cur):
+    with get_db(statement_timeout=30000) as (conn, cur):
         # Count total
-        cur.execute(f"SELECT COUNT(*) FROM ads WHERE {where}", params)
+        cur.execute(f"SELECT COUNT(*) FROM ads a WHERE {where}", params)
         total = cur.fetchone()[0]
 
         # Fetch page
         cur.execute(
             f"""
-            SELECT id, platform, format, advertiser_name, advertiser_handle,
-                   advertiser_avatar_url, thumbnail_url, preview_url, media_type,
-                   ad_copy, cta_text, likes, comments, shares,
-                   start_date, end_date, tags, landing_page_url,
-                   created_at, saved_at
-            FROM ads
+            SELECT a.id, a.platform, a.format, a.advertiser_name, a.advertiser_handle,
+                   a.advertiser_avatar_url, a.thumbnail_url, a.preview_url, a.media_type,
+                   a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
+                   a.start_date, a.end_date, a.tags, a.landing_page_url,
+                   a.created_at, a.saved_at, b.brand_name
+            FROM ads a
+            LEFT JOIN brands b ON a.brand_id = b.id
             WHERE {where}
             ORDER BY {order}
             LIMIT %s OFFSET %s

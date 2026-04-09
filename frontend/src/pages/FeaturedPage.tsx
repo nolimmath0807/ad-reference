@@ -315,10 +315,10 @@ export function FeaturedPage() {
                       />
                     ) : (
                       <div className="flex size-6 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
-                        {item.ad.advertiser_name.charAt(0).toUpperCase()}
+                        {(item.ad.brand_name || item.ad.advertiser_name).charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="truncate text-sm font-medium">{item.ad.advertiser_name}</span>
+                    <span className="truncate text-sm font-medium">{item.ad.brand_name || item.ad.advertiser_name}</span>
                   </div>
 
                   {/* Thumbnail */}
