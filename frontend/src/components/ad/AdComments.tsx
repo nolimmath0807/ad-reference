@@ -44,9 +44,17 @@ export function AdComments({ adId }: AdCommentsProps) {
   };
 
   const handleDelete = async (commentId: string) => {
-    await api.delete(`/ads/${adId}/comments/${commentId}`);
-    await loadComments();
-    toast.success("댓글이 삭제되었습니다.");
+    // optimistic update: 즉시 로컬에서 제거
+    setComments(prev => prev.filter(c => c.id !== commentId));
+    setTotal(prev => prev - 1);
+    try {
+      await api.delete(`/ads/${adId}/comments/${commentId}`);
+      toast.success("댓글이 삭제되었습니다.");
+    } catch {
+      // 실패 시 원복
+      await loadComments();
+      toast.error("삭제에 실패했습니다.");
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
