@@ -1,14 +1,36 @@
 import logging
 import os
+import threading
 
 import httpx
 
 from conn import get_db
 from ads.extract_script import _is_youtube_url
+from platforms.s3 import upload_from_file, is_s3_configured
 
 logger = logging.getLogger("video_proxy")
 
 CACHE_DIR = "/tmp/ad-videos"
+
+
+def _upload_to_s3_and_update_db(ad_id: str, local_path: str, original_url: str) -> None:
+    if not is_s3_configured():
+        return
+    s3_key = f"videos/{ad_id}.mp4"
+    try:
+        s3_url = upload_from_file(local_path, s3_key)
+        if s3_url:
+            with get_db() as (conn, cur):
+                cur.execute(
+                    "UPDATE ads SET preview_url = %s WHERE id = %s AND preview_url = %s",
+                    (s3_url, ad_id, original_url),
+                )
+                conn.commit()
+            logger.info("S3 upload and DB update succeeded for ad %s: %s", ad_id, s3_url)
+        else:
+            logger.warning("S3 upload returned no URL for ad %s", ad_id)
+    except Exception:
+        logger.exception("S3 upload/DB update failed for ad %s", ad_id)
 
 
 def get_video_path(ad_id: str) -> str | None:
@@ -60,6 +82,13 @@ def get_video_path(ad_id: str) -> str | None:
         if not os.path.exists(cache_path):
             logger.error("yt-dlp produced no output file for ad %s (url=%s)", ad_id, preview_url)
             return None
+
+        # 백그라운드로 S3 영구 저장
+        threading.Thread(
+            target=_upload_to_s3_and_update_db,
+            args=(ad_id, cache_path, preview_url),
+            daemon=True,
+        ).start()
     else:
         # httpx로 직접 다운로드 (비유튜브 CDN URL)
         logger.info("Downloading non-YouTube video for ad %s: %s", ad_id, preview_url)

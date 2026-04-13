@@ -156,6 +156,31 @@ def upload_from_url(url: str, s3_key_prefix: str, cookies: dict[str, str] | None
     return public_url
 
 
+def upload_from_file(local_path: str, s3_key: str, content_type: str = "video/mp4") -> str | None:
+    """
+    로컬 파일을 S3에 업로드하고 퍼블릭 URL 반환.
+    실패 시 None 반환.
+    """
+    if not is_s3_configured():
+        logger.warning("S3 미설정, 업로드 건너뜀")
+        return None
+    try:
+        with open(local_path, "rb") as f:
+            _get_s3_client().put_object(
+                Bucket=_BUCKET,
+                Key=s3_key,
+                Body=f,
+                ContentType=content_type,
+            )
+        public_url = f"https://{_BUCKET}.s3.{_REGION}.amazonaws.com/{s3_key}"
+        file_size = os.path.getsize(local_path)
+        logger.info(f"S3 파일 업로드 성공: {public_url} ({file_size:,} bytes)")
+        return public_url
+    except Exception as e:
+        logger.error(f"S3 파일 업로드 실패: key={s3_key}, error={type(e).__name__}: {e}")
+        return None
+
+
 def main(url: str, prefix: str) -> dict:
     logging.basicConfig(level=logging.INFO)
 
