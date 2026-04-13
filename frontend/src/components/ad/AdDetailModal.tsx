@@ -102,6 +102,7 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
   const [downloading, setDownloading] = useState(false);
   const [featuredLoading, setFeaturedLoading] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [videoAttempt, setVideoAttempt] = useState(0);
 
   useEffect(() => {
     if (open && ad) {
@@ -109,6 +110,7 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
       setIsLoading(true);
       setMediaError(false);
       setVideoLoading(false);
+      setVideoAttempt(0);
       api.get<AdDetailResponse>(`/ads/${ad.id}`).then((data) => {
         setDetail(data);
         setIsLoading(false);
@@ -305,13 +307,29 @@ export function AdDetailModal({ ad, open, onOpenChange, featuredIds, onFeaturedC
                         </div>
                       )}
                       <video
-                        src={`${API_BASE_URL}/ads/${currentAd.id}/video`}
+                        key={videoAttempt}
+                        src={
+                          videoAttempt === 0
+                            ? `${API_BASE_URL}/ads/${currentAd.id}/video`
+                            : currentAd.preview_url ?? undefined
+                        }
                         controls
                         className="w-full max-h-[40vh] object-contain md:max-h-[70vh]"
                         poster={getImageUrl(currentAd.thumbnail_url)}
                         onLoadStart={() => setVideoLoading(true)}
                         onCanPlay={() => setVideoLoading(false)}
-                        onError={() => { setVideoLoading(false); setMediaError(true); }}
+                        onError={() => {
+                          setVideoLoading(false);
+                          const isYouTube =
+                            currentAd.preview_url?.includes("youtube") ||
+                            currentAd.preview_url?.includes("youtu.be");
+                          if (videoAttempt === 0 && currentAd.preview_url && !isYouTube) {
+                            setVideoAttempt(1);
+                            setVideoLoading(true);
+                          } else {
+                            setMediaError(true);
+                          }
+                        }}
                       />
                     </div>
                   ) : (
