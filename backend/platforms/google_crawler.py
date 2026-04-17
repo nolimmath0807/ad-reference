@@ -5,8 +5,12 @@ import re
 from datetime import datetime, date
 from pathlib import Path
 
+import logging
+
 from playwright.async_api import async_playwright
 from dotenv import load_dotenv
+
+logger = logging.getLogger("google_crawler")
 
 from conn import get_db
 from platforms.model import PlatformAd, PlatformType
@@ -36,12 +40,12 @@ async def crawl_google_ads(domain: str, max_ads: int = 20) -> list[PlatformAd]:
             see_all_btn = page.locator('material-button.grid-expansion-button')
             if await see_all_btn.count() > 0:
                 await see_all_btn.first.click()
-                print(f"[Google Crawler] Clicked 'See all ads' button")
+                logger.info("Clicked 'See all ads' button")
                 await page.wait_for_timeout(3000)
             else:
-                print(f"[Google Crawler] No 'See all ads' button found (all ads may already be visible)")
+                logger.info("No 'See all ads' button found (all ads may already be visible)")
         except Exception as e:
-            print(f"[Google Crawler] Could not click 'See all ads': {e}")
+            logger.error("Could not click 'See all ads': %s", e)
 
         # 3. Scroll to load more ads
         prev_count = 0
@@ -53,7 +57,7 @@ async def crawl_google_ads(domain: str, max_ads: int = 20) -> list[PlatformAd]:
                 return document.querySelectorAll('creative-preview a[href*="/creative/"]').length;
             }''')
 
-            print(f"[Google Crawler] Scroll {scroll_attempts + 1}: found {current_count} ads so far")
+            logger.info("Scroll %d: found %d ads so far", scroll_attempts + 1, current_count)
 
             if current_count >= max_ads:
                 break
@@ -76,7 +80,7 @@ async def crawl_google_ads(domain: str, max_ads: int = 20) -> list[PlatformAd]:
             })).filter(a => a.href && a.href.includes('/creative/'));
         }''')
 
-        print(f"[Google Crawler] Found {len(ad_links)} ads for {domain}")
+        logger.info("Found %d ads for %s", len(ad_links), domain)
 
         # 5. Visit each detail page (limit to max_ads)
         for i, link_data in enumerate(ad_links[:max_ads]):
@@ -87,9 +91,9 @@ async def crawl_google_ads(domain: str, max_ads: int = 20) -> list[PlatformAd]:
                 ad_data = await _extract_ad_detail(page, detail_url)
                 if ad_data:
                     ads.append(ad_data)
-                    print(f"  [{i+1}/{min(len(ad_links), max_ads)}] {ad_data.advertiser_name} - {ad_data.format}")
+                    logger.info("[%d/%d] %s - %s", i + 1, min(len(ad_links), max_ads), ad_data.advertiser_name, ad_data.format)
             except Exception as e:
-                print(f"  [{i+1}] Error: {e}")
+                logger.error("[%d] Error: %s", i + 1, e)
                 continue
 
             # Small delay between requests
@@ -265,8 +269,7 @@ async def _extract_ad_detail(page, detail_url: str) -> PlatformAd | None:
     if not data.get('creativeId'):
         return None
 
-    # DEBUG: Print raw JS data for diagnosis
-    print(f"  [DEBUG] {data.get('creativeId')}: adImage={repr(data.get('adImage'))}, adImageSyndication={repr(data.get('adImageSyndication'))}, adImageOther={repr(data.get('adImageOther'))}, videoPoster={repr(data.get('videoPoster'))}, youtubeVideoIds={data.get('youtubeVideoIds', [])}")
+    logger.debug("%s: adImage=%r, adImageSyndication=%r, adImageOther=%r, videoPoster=%r, youtubeVideoIds=%s", data.get('creativeId'), data.get('adImage'), data.get('adImageSyndication'), data.get('adImageOther'), data.get('videoPoster'), data.get('youtubeVideoIds', []))
 
     # 1. Determine format FIRST (needed for thumbnail priority)
     raw_format = data.get('format', 'unknown').lower()
@@ -285,7 +288,7 @@ async def _extract_ad_detail(page, detail_url: str) -> PlatformAd | None:
 
     # Skip text/search ads
     if ad_format == 'text' or data.get('isSearchAd', False):
-        print(f"  [Skip] Search/text ad {data.get('creativeId')} - not a display ad (format={ad_format}, isSearchAd={data.get('isSearchAd', False)})")
+        logger.debug("Search/text ad %s - not a display ad (format=%s, isSearchAd=%s)", data.get('creativeId'), ad_format, data.get('isSearchAd', False))
         return None
 
     # 2. Determine thumbnail based on format
@@ -298,7 +301,7 @@ async def _extract_ad_detail(page, detail_url: str) -> PlatformAd | None:
         syndication_img = data.get('adImageSyndication', '')
         other_img = data.get('adImageOther', '')
         if not other_img or 'googlesyndication.com' in (other_img or ''):
-            print(f"  [Skip] Likely search ad {data.get('creativeId')} - video format but no video content, only syndication thumbnail")
+            logger.debug("Likely search ad %s - video format but no video content, only syndication thumbnail", data.get('creativeId'))
             return None
 
     if ad_format == 'video':
@@ -325,7 +328,7 @@ async def _extract_ad_detail(page, detail_url: str) -> PlatformAd | None:
     else:
         preview_url = data.get('videoSrc') or data.get('url')
 
-    print(f"  [DEBUG] {data.get('creativeId')}: thumbnail_url={repr(thumbnail_url[:80] if thumbnail_url else 'EMPTY')}, preview_url={repr(preview_url[:80] if preview_url else 'EMPTY')}")
+    logger.debug("%s: thumbnail_url=%r, preview_url=%r", data.get('creativeId'), thumbnail_url[:80] if thumbnail_url else 'EMPTY', preview_url[:80] if preview_url else 'EMPTY')
 
     return PlatformAd(
         source_id=data['creativeId'],
@@ -348,7 +351,7 @@ async def _extract_ad_detail(page, detail_url: str) -> PlatformAd | None:
 
 async def _screenshot_fallback(page, creative_id: str) -> str:
     """Take a viewport screenshot of the creative preview area as thumbnail fallback."""
-    print(f"  [Screenshot] Taking fallback screenshot for {creative_id}...")
+    logger.info("Taking fallback screenshot for %s...", creative_id)
     screenshots_dir = Path(__file__).parent.parent / "static" / "screenshots"
     screenshots_dir.mkdir(parents=True, exist_ok=True)
     screenshot_path = screenshots_dir / f"{creative_id}.png"
@@ -358,10 +361,10 @@ async def _screenshot_fallback(page, creative_id: str) -> str:
             path=str(screenshot_path),
             clip={"x": 250, "y": 200, "width": 780, "height": 550},
         )
-        print(f"  [Screenshot] Saved: {screenshot_path}")
+        logger.info("Screenshot saved: %s", screenshot_path)
         return f"/static/screenshots/{creative_id}.png"
     except Exception:
-        print(f"  [Screenshot] Failed for {creative_id}")
+        logger.error("Screenshot failed for %s", creative_id)
         return ''
 
 
@@ -414,7 +417,7 @@ def main(domains: list[str], max_per_domain: int = 20) -> dict:
     results = {"domains": {}, "total": 0, "saved": 0}
 
     for domain in domains:
-        print(f"\n[Google Crawler] Crawling {domain}...")
+        logger.info("Crawling %s...", domain)
         ads = asyncio.run(crawl_google_ads(domain, max_ads=max_per_domain))
         all_ads.extend(ads)
         results["domains"][domain] = len(ads)
@@ -424,7 +427,7 @@ def main(domains: list[str], max_per_domain: int = 20) -> dict:
     results["saved"] = saved
     results["crawled_at"] = datetime.now().isoformat()
 
-    print(f"\n[Google Crawler] Total: {len(all_ads)} ads, Saved: {saved}")
+    logger.info("Total: %d ads, Saved: %d", len(all_ads), saved)
     return results
 
 
@@ -440,4 +443,4 @@ if __name__ == "__main__":
     output_dir.mkdir(exist_ok=True)
     output_file = output_dir / f"google_crawl_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     output_file.write_text(json.dumps(result, ensure_ascii=False, indent=2))
-    print(f"Saved: {output_file}")
+    logger.info("Saved: %s", output_file)

@@ -62,11 +62,12 @@ export function SaveToBoardDialog({ adId, open, onOpenChange, onSaved }: SaveToB
       toast.success("Ad saved to board.");
       onOpenChange(false);
       onSaved?.();
-    } catch (err: any) {
-      if (err?.status === 409) {
+    } catch (err: unknown) {
+      const apiErr = typeof err === "object" && err !== null ? (err as { status?: number; error?: { message?: string } }) : null;
+      if (apiErr?.status === 409) {
         toast.error("이미 보드에 추가된 광고입니다.");
       } else {
-        toast.error(err?.error?.message || "저장에 실패했습니다.");
+        toast.error(apiErr?.error?.message || "저장에 실패했습니다.");
       }
     } finally {
       setIsSaving(false);
@@ -85,8 +86,12 @@ export function SaveToBoardDialog({ adId, open, onOpenChange, onSaved }: SaveToB
       setShowNewBoard(false);
       setNewBoardName("");
       toast.success("Board created.");
-    } catch (err: any) {
-      toast.error(err?.error?.message || "보드 생성에 실패했습니다.");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err !== null && "error" in err
+          ? (err as { error?: { message?: string } }).error?.message
+          : undefined;
+      toast.error(message || "보드 생성에 실패했습니다.");
     } finally {
       setIsCreating(false);
     }

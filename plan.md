@@ -1,99 +1,54 @@
-# Featured References (추천 레퍼런스) 구현 계획
+# 보드 공유 기능
 
 ## Overview
-관리자가 좋은 레퍼런스라고 판단한 광고를 큐레이션하여 별도 페이지에서 보여주는 기능. 관리자는 광고 상세 모달/그리드에서 "추천 레퍼런스"로 등록하고, 일반 사용자는 큐레이션된 광고만 모아볼 수 있음.
+보드 소유자가 공유 링크를 생성하면, 링크를 가진 로그인 유저가 해당 보드를 읽기 전용으로 열람할 수 있다. boards 테이블에 share_token 컬럼을 추가하고, 토큰 기반 조회 엔드포인트를 제공한다.
 
-## Layout Design
+## API 설계
+- `POST   /boards/{board_id}/share`   — 공유 토큰 생성 (소유자만, JWT 필수)
+- `DELETE /boards/{board_id}/share`   — 공유 토큰 폐기 (소유자만, JWT 필수)
+- `GET    /shared/{token}`            — 토큰으로 보드 조회 (JWT 필수, 읽기 전용)
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ [Sidebar]  │  Featured References                [+ Add] │
-│            │─────────────────────────────────────────────│
-│  Dashboard │  [All] [Google] [Meta]    [Search...] [Sort]│
-│            │─────────────────────────────────────────────│
-│  Ads       │                                             │
-│  Boards    │  ┌─────────┐ ┌─────────┐ ┌─────────┐      │
-│ ★Featured  │  │ thumbnail│ │ thumbnail│ │ thumbnail│     │
-│  Settings  │  │ ─────── │ │ ─────── │ │ ─────── │      │
-│            │  │ brand   │ │ brand   │ │ brand   │      │
-│            │  │ format  │ │ format  │ │ format  │      │
-│            │  │ [Remove]│ │ [Remove]│ │ [Remove]│      │
-│            │  └─────────┘ └─────────┘ └─────────┘      │
-│            │                                             │
-│            │  ┌─────────┐ ┌─────────┐ ┌─────────┐      │
-│            │  │ thumbnail│ │ thumbnail│ │ thumbnail│     │
-│            │  │ ...     │ │ ...     │ │ ...     │      │
-│            │  └─────────┘ └─────────┘ └─────────┘      │
-│            │                                             │
-│            │          [ Load More ]                      │
-└─────────────────────────────────────────────────────────┘
-```
-
-- **[+ Add]**: 관리자 전용, 기존 광고 검색 → 추천에 추가
-- **[Remove]**: 관리자 전용, 추천에서 제거 (광고 자체 삭제 아님)
-- 기존 AdGrid/AdCard 컴포넌트 재사용
-- 플랫폼 탭, 검색, 정렬 필터 지원
-
-## DB Schema
-
+## DB 변경
 ```sql
-CREATE TABLE IF NOT EXISTS featured_references (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    ad_id UUID NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
-    added_by UUID REFERENCES users(id),
-    added_at TIMESTAMPTZ DEFAULT NOW(),
-    memo TEXT,
-    UNIQUE(ad_id)
-);
-CREATE INDEX idx_featured_references_added_at ON featured_references(added_at DESC);
+ALTER TABLE boards ADD COLUMN share_token VARCHAR(36) UNIQUE;
 ```
-
-## API Endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/featured-references` | 로그인 | 추천 광고 목록 (페이지네이션, 플랫폼 필터) |
-| `POST` | `/admin/featured-references` | 관리자 | 광고를 추천에 추가 (ad_id, memo) |
-| `DELETE` | `/admin/featured-references/{ad_id}` | 관리자 | 추천에서 제거 |
 
 ## Key Files
-
 | File | Action | Description |
 |------|--------|-------------|
-| `backend/migrate.py` | Modify | `featured_references` 테이블 생성 마이그레이션 추가 |
-| `backend/featured/add.py` | Create | POST /admin/featured-references (광고 추천 등록) |
-| `backend/featured/remove.py` | Create | DELETE /admin/featured-references/{ad_id} (추천 해제) |
-| `backend/featured/list.py` | Create | GET /featured-references (추천 목록 조회 + 필터) |
-| `backend/featured/model.py` | Create | Pydantic 모델 |
-| `backend/api.py` | Modify | 라우트 3개 추가 |
-| `frontend/src/pages/FeaturedPage.tsx` | Create | 추천 레퍼런스 페이지 |
-| `frontend/src/components/featured/AddFeaturedModal.tsx` | Create | 광고 검색 → 추천 추가 모달 |
-| `frontend/src/App.tsx` | Modify | 라우트 추가 |
-| `frontend/src/components/layout/AppSidebar.tsx` | Modify | 사이드바 메뉴 추가 |
+| `backend/migrate.py` | Modify | boards에 share_token 컬럼 추가 |
+| `backend/boards/share.py` | Create | 공유 토큰 생성 (소유자 전용) |
+| `backend/boards/unshare.py` | Create | 공유 토큰 폐기 |
+| `backend/boards/shared_detail.py` | Create | 토큰으로 보드 조회 |
+| `backend/api.py` | Modify | 공유 관련 엔드포인트 3개 추가 |
+| `frontend/src/types/board.ts` | Modify | share_token 필드 추가 |
+| `frontend/src/components/board/ShareBoardDialog.tsx` | Create | 링크 복사 다이얼로그 |
+| `frontend/src/components/board/BoardHeader.tsx` | Modify | 공유 버튼 + ShareBoardDialog 연결 |
+| `frontend/src/pages/SharedBoardPage.tsx` | Create | 공유 보드 읽기 전용 페이지 |
+| `frontend/src/App.tsx` | Modify | /shared/:token 라우트 추가 |
 
 ## Implementation Steps
+1. **DB 스키마** — migrate.py에 share_token VARCHAR(36) UNIQUE 컬럼 추가
+2. **토큰 생성** — share.py: uuid4 토큰 생성 후 boards.share_token에 저장, 소유자 검증
+3. **토큰 폐기** — unshare.py: share_token을 NULL로 업데이트
+4. **공유 보드 조회** — shared_detail.py: share_token으로 보드 + items 조회
+5. **API 라우트** — api.py에 3개 엔드포인트 등록
+6. **Frontend 타입** — board.ts에 share_token 추가
+7. **ShareBoardDialog** — 링크 생성/복사/공유 중단 UI
+8. **BoardHeader** — 공유 버튼 추가, ShareBoardDialog 연결
+9. **SharedBoardPage** — 읽기 전용 보드 페이지 (소유자명 + 광고 그리드)
+10. **App.tsx** — /shared/:token 라우트 추가
 
-### Phase 1: Foundation (병렬)
-- Task 1-1: `backend/migrate.py` 수정 — featured_references 테이블 마이그레이션 추가 → agent: python-coder
-- Task 1-2: `backend/featured/model.py` 생성 — Pydantic 모델 (FeaturedReferenceCreate, FeaturedReferenceResponse) → agent: python-coder
-
-### Phase 2: Backend Endpoints (병렬)
-- Task 2-1: `backend/featured/add.py` 생성 — POST 추천 등록 로직 → agent: python-coder
-- Task 2-2: `backend/featured/remove.py` 생성 — DELETE 추천 해제 로직 → agent: python-coder
-- Task 2-3: `backend/featured/list.py` 생성 — GET 추천 목록 조회 (필터, 페이지네이션) → agent: python-coder
-- Task 2-4: `backend/api.py` 수정 — 라우트 3개 연결 → agent: python-coder
-
-### Phase 3: Frontend (병렬)
-- Task 3-1: `frontend/src/pages/FeaturedPage.tsx` 생성 — 추천 레퍼런스 페이지 → agent: frontend-coder
-- Task 3-2: `frontend/src/components/featured/AddFeaturedModal.tsx` 생성 — 광고 검색 추가 모달 → agent: frontend-coder
-- Task 3-3: `frontend/src/App.tsx` 수정 — 라우트 추가 → agent: frontend-coder
-- Task 3-4: `frontend/src/components/layout/AppSidebar.tsx` 수정 — 사이드바 메뉴 추가 → agent: frontend-coder
+## UX 흐름
+1. BoardHeader → "공유" 버튼 클릭
+2. ShareBoardDialog → "링크 생성" → POST /boards/{id}/share
+3. 링크 복사 버튼 → 클립보드에 /shared/{token} URL 복사
+4. 수신자 접속 → SharedBoardPage (읽기 전용)
+5. "공유 중단" → DELETE /boards/{id}/share → 토큰 무효화
 
 ## Dependencies
-- 기존 ads 테이블, users 테이블
-- 기존 AdGrid, AdCard, FilterBar, PlatformTabs 프론트엔드 컴포넌트
-- get_admin_user() FastAPI dependency
+- 추가 라이브러리 없음 (uuid 모듈은 Python 내장)
 
 ## Risks & Mitigations
-- **기존 AdCard 재사용**: Remove 버튼 추가 시 optional prop으로 처리
-- **광고 삭제 시 연쇄**: ON DELETE CASCADE로 자동 처리
+- **토큰 추측 공격**: UUID v4 사용으로 충분한 엔트로피 확보
+- **소유자 검증 누락**: share.py, unshare.py에서 board.user_id == requester_id 반드시 검증

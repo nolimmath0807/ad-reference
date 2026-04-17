@@ -58,8 +58,12 @@ export function BoardCard({ board, onDeleted, onUpdated }: BoardCardProps) {
       toast.success("Board deleted successfully.");
       setShowDeleteDialog(false);
       onDeleted();
-    } catch (err: any) {
-      toast.error(err?.error?.message || "삭제에 실패했습니다.");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err !== null && "error" in err
+          ? (err as { error?: { message?: string } }).error?.message
+          : undefined;
+      toast.error(message || "삭제에 실패했습니다.");
     } finally {
       setIsDeleting(false);
     }
@@ -76,8 +80,12 @@ export function BoardCard({ board, onDeleted, onUpdated }: BoardCardProps) {
       toast.success("Board updated successfully.");
       setShowEditDialog(false);
       onUpdated();
-    } catch (err: any) {
-      toast.error(err?.error?.message || "수정에 실패했습니다.");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err !== null && "error" in err
+          ? (err as { error?: { message?: string } }).error?.message
+          : undefined;
+      toast.error(message || "수정에 실패했습니다.");
     } finally {
       setIsUpdating(false);
     }

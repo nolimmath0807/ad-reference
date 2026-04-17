@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import HTTPException
 
 from conn import get_db
+from utils.serialize import serialize_row
 
 
 def update_user_admin(user_id: str, is_approved: Optional[bool] = None, role: Optional[str] = None) -> dict:
@@ -59,13 +60,7 @@ def update_user_admin(user_id: str, is_approved: Optional[bool] = None, role: Op
         row = cur.fetchone()
 
     cols = ["id", "email", "name", "company", "job_title", "role", "is_approved", "created_at", "updated_at"]
-    user = dict(zip(cols, row))
-    for k, v in user.items():
-        if hasattr(v, "isoformat"):
-            user[k] = v.isoformat()
-        elif hasattr(v, "hex"):
-            user[k] = str(v)
-    return user
+    return serialize_row(cols, row)
 
 
 def main(user_id: str, is_approved: Optional[bool] = None, role: Optional[str] = None) -> dict:

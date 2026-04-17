@@ -42,8 +42,8 @@ def get_board_detail(board_id: str, user_id: str, page: int = 1, limit: int = 20
         cur.execute(
             """
             SELECT
-                bi.id, bi.board_id, bi.ad_id, bi.added_at,
-                a.id, a.platform, a.format, a.advertiser_name,
+                bi.id AS bi_id, bi.board_id, bi.ad_id, bi.added_at,
+                a.id AS ad_id_pk, a.platform, a.format, a.advertiser_name,
                 a.advertiser_handle, a.advertiser_avatar_url,
                 a.thumbnail_url, a.preview_url, a.media_type,
                 a.ad_copy, a.cta_text, a.likes, a.comments, a.shares,
@@ -57,38 +57,40 @@ def get_board_detail(board_id: str, user_id: str, page: int = 1, limit: int = 20
             """,
             (board_id, limit, offset),
         )
+        item_cols = [desc[0] for desc in cur.description]
         item_rows = cur.fetchall()
 
     items = []
     for row in item_rows:
+        d = dict(zip(item_cols, row))
         ad = Ad(
-            id=str(row[4]),
-            platform=row[5],
-            format=row[6],
-            advertiser_name=row[7],
-            advertiser_handle=row[8],
-            advertiser_avatar_url=row[9],
-            thumbnail_url=row[10],
-            preview_url=row[11],
-            media_type=row[12],
-            ad_copy=row[13],
-            cta_text=row[14],
-            likes=row[15],
-            comments=row[16],
-            shares=row[17],
-            start_date=row[18],
-            end_date=row[19],
-            tags=row[20] if row[20] else [],
-            landing_page_url=row[21],
-            created_at=row[22],
-            saved_at=row[23],
+            id=str(d["ad_id_pk"]),
+            platform=d["platform"],
+            format=d["format"],
+            advertiser_name=d["advertiser_name"],
+            advertiser_handle=d["advertiser_handle"],
+            advertiser_avatar_url=d["advertiser_avatar_url"],
+            thumbnail_url=d["thumbnail_url"],
+            preview_url=d["preview_url"],
+            media_type=d["media_type"],
+            ad_copy=d["ad_copy"],
+            cta_text=d["cta_text"],
+            likes=d["likes"],
+            comments=d["comments"],
+            shares=d["shares"],
+            start_date=d["start_date"],
+            end_date=d["end_date"],
+            tags=d["tags"] if d["tags"] else [],
+            landing_page_url=d["landing_page_url"],
+            created_at=d["created_at"],
+            saved_at=d["saved_at"],
         )
         item = BoardItem(
-            id=str(row[0]),
-            board_id=str(row[1]),
-            ad_id=str(row[2]),
+            id=str(d["bi_id"]),
+            board_id=str(d["board_id"]),
+            ad_id=str(d["ad_id"]),
             ad=ad,
-            added_at=row[3],
+            added_at=d["added_at"],
         )
         items.append(item)
 

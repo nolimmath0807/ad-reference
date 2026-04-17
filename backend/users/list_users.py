@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 
 from conn import get_db
+from utils.serialize import rows_to_dicts
 
 
 def list_all_users() -> list[dict]:
@@ -11,16 +12,7 @@ def list_all_users() -> list[dict]:
         cur.execute(
             "SELECT id, email, name, company, job_title, role, is_approved, created_at FROM users ORDER BY created_at"
         )
-        cols = [desc[0] for desc in cur.description]
-        rows = []
-        for row in cur.fetchall():
-            d = dict(zip(cols, row))
-            for k, v in d.items():
-                if hasattr(v, "isoformat"):
-                    d[k] = v.isoformat()
-                elif hasattr(v, "hex"):
-                    d[k] = str(v)
-            rows.append(d)
+        rows = rows_to_dicts(cur)
     return rows
 
 

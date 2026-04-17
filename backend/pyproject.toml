@@ -20,4 +20,6 @@ dependencies = [
     "yt-dlp",
     "numpy",
     "slowapi",
+    "anthropic",
+    "google-genai>=1.73.1",
 ]

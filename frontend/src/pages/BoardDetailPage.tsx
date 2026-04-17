@@ -37,8 +37,12 @@ export function BoardDetailPage() {
         limit: 50,
       });
       setBoard(data);
-    } catch (err: any) {
-      setError(err?.error?.message || "보드를 불러올 수 없습니다.");
+    } catch (err: unknown) {
+      const message =
+        typeof err === "object" && err !== null && "error" in err
+          ? (err as { error?: { message?: string } }).error?.message
+          : undefined;
+      setError(message || "보드를 불러올 수 없습니다.");
     } finally {
       setIsLoading(false);
     }

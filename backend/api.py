@@ -1375,6 +1375,11 @@ async def api_get_ad_video(
             media_type="video/mp4",
         )
 
+    # 캐시/다운로드 실패 시 원본 URL로 redirect (CDN URL이 살아있으면 브라우저가 직접 재생)
+    preview_url = get_preview_url(ad_id)
+    if preview_url:
+        return RedirectResponse(url=preview_url)
+
     raise HTTPException(status_code=404, detail="Video not found")
 
 
